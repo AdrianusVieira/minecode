@@ -1,6 +1,6 @@
 # The Village
 
-A continuous, navigable village for projects and sessions. Every project gets an open-front workshop, and every session gets a seat at its shared worktable. The first version uses sample sessions so the village is useful immediately, with a standalone data endpoint for real metadata.
+A continuous, navigable world for projects and sessions. Claude Code projects occupy a warm village bank; Codex projects occupy an outpost across the river. Every project gets an open-front building, and every session gets a seat at its shared worktable. The visual preview uses sample sessions, with a standalone data endpoint for real metadata later.
 
 ## Run locally
 
@@ -32,6 +32,7 @@ The file format is:
       "id": "project-id",
       "name": "Project name",
       "kind": "Workshop",
+      "source": "claude",
       "sessions": [
         {
           "id": "session-id",
@@ -46,7 +47,7 @@ The file format is:
 }
 ```
 
-`updatedAt` may be `null`. `status` is `recent`, `quiet`, or `unknown`; it describes a supplied signal, not whether a Claude Code process is running. The `id` fields must be unique. The endpoint deliberately accepts only names, times, and short activity descriptions. Transcripts, prompts, tool inputs, and credentials are outside this UI contract.
+`source` is `claude` or `codex` and places the project on its corresponding bank. Omit it in an older file to default to `claude`. `updatedAt` may be `null`. `status` is `recent`, `quiet`, or `unknown`; it describes a supplied signal, not whether a process is running. The `id` fields must be unique. The endpoint deliberately accepts only names, times, and short activity descriptions. Transcripts, prompts, tool inputs, and credentials are outside this UI contract.
 
 The next integration can collect Claude Code session metadata and write this file, or implement a new source behind `server/worldSource.ts`. The world renderer and inspector consume the same `WorldSnapshot` either way. Opening or continuing a Claude Code conversation requires a separate supported action and is not part of this milestone. Cowork is not connected.
 

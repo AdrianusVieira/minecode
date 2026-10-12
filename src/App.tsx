@@ -80,10 +80,10 @@ export default function App() {
     </div>
     {showGuide && <div className="guide-popover" role="dialog" aria-label="How to explore">
       <div className="popover-heading"><strong>Explore the village</strong><button type="button" aria-label="Close guide" onClick={() => setShowGuide(false)}>×</button></div>
-      <p>Drag to pan. Scroll or pinch to zoom. Select a workshop name to move closer, then select a seated villager for session details.</p>
+      <p>Drag to pan. Scroll or pinch to zoom. Cross the river between the Claude village and Codex outpost. Select a building name to move closer, then select a seated character for session details.</p>
       <p className="guide-shortcuts">Keyboard: <kbd>0</kbd> fit all · <kbd>+</kbd> / <kbd>−</kbd> zoom · <kbd>Esc</kbd> close</p>
     </div>}
-    <div className="world-intro"><span className="intro-line" />Every project has a place. Every session has a seat.</div>
+    <div className="world-intro"><span className="intro-line" />Two banks. One world. Every session has a seat.</div>
     <div className="world-footer-left">
       {focusedProject ? <div className="focus-caption"><span>YOU ARE VISITING</span><strong>{focusedProject.name}</strong><button type="button" onClick={fit}>See all places <span aria-hidden="true">↗</span></button></div> : <div className="map-caption"><span className="map-caption-icon">⌖</span><span>Drag to wander<br /><small>Scroll to look closer</small></span></div>}
     </div>
@@ -95,12 +95,12 @@ export default function App() {
       <button type="button" className="fit-button" onClick={fit} title="Fit all places">Fit all</button>
     </div>
     {selected && <aside className="session-panel" aria-label="Session details">
-      <div className="panel-top"><span>SESSION / {selected.project.kind.toUpperCase()}</span><button type="button" onClick={() => setSelectedId(null)} aria-label="Close session details">×</button></div>
-      <div className="panel-portrait" aria-hidden="true"><span className={`portrait-orbit ${selected.session.status}`}><span className="portrait-body" /><span className="portrait-head"><span className="portrait-eyes" /><span className="portrait-nose" /></span></span></div>
+      <div className="panel-top"><span>{selected.project.source.toUpperCase()} SESSION / {selected.project.kind.toUpperCase()}</span><button type="button" onClick={() => setSelectedId(null)} aria-label="Close session details">×</button></div>
+      <div className={`panel-portrait ${selected.project.source === 'codex' ? 'codex' : ''}`} aria-hidden="true"><span className={`portrait-orbit ${selected.session.status}`}><span className="portrait-body" /><span className="portrait-head"><span className="portrait-eyes" /><span className="portrait-nose" /></span></span></div>
       <p className="panel-kicker">SEATED AT {selected.project.name.toUpperCase()}</p>
       <h2>{selected.session.name}</h2>
       <div className="panel-activity"><span className={`activity-dot ${selected.session.status}`} /><div><small>LATEST ACTIVITY</small><strong>{selected.session.activity}</strong></div></div>
-      <dl className="panel-details"><div><dt>Last observed</dt><dd>{snapshot?.source === 'sample' ? 'Sample activity' : timeAgo(selected.session.updatedAt)}</dd></div><div><dt>Source</dt><dd>{snapshot?.source === 'sample' ? 'Illustrative session' : 'Local session snapshot'}</dd></div></dl>
+      <dl className="panel-details"><div><dt>Last observed</dt><dd>{snapshot?.source === 'sample' ? 'Sample activity' : timeAgo(selected.session.updatedAt)}</dd></div><div><dt>Agent</dt><dd>{selected.project.source === 'codex' ? 'Codex' : 'Claude Code'}</dd></div><div><dt>Data</dt><dd>{snapshot?.source === 'sample' ? 'Illustrative session' : 'Local session snapshot'}</dd></div></dl>
       {snapshot?.source === 'file' && <button type="button" className="copy-button" onClick={() => void copyId()}>{copied ? 'Copied session ID' : 'Copy session ID'} <span aria-hidden="true">↗</span></button>}
       <p className="panel-note">Activity is the latest supplied signal. It does not confirm that a session is currently running.</p>
     </aside>}

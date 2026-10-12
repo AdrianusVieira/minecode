@@ -10,6 +10,7 @@ export type Project = {
   id: string
   name: string
   kind: string
+  source: 'claude' | 'codex'
   sessions: Session[]
 }
 

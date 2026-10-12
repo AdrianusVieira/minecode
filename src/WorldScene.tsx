@@ -39,6 +39,18 @@ const materials = {
   hair: hairColors.map((color) => mat(color)),
   lamp: mat(0xf3cf83, { emissive: 0xf4bd6d, emissiveIntensity: 0.75 }),
   parchment: mat(0xeee1c1),
+  outpostGround: mat(0x697b64), outpostGrass: mat(0x536953),
+  outpostStone: mat(0x858884), outpostStoneDark: mat(0x575c5d),
+  outpostWall: mat(0xabb2a5), outpostWallShade: mat(0x7f8981),
+  outpostTimber: mat(0x393a3a), outpostWood: mat(0x5f5149),
+  outpostWoodLight: mat(0x827268), outpostRoof: mat(0x414d53),
+  outpostRoofTrim: mat(0x6f7c7c), outpostBanner: mat(0x2d3743),
+  outpostAccent: mat(0xb5775c), outpostCloth: [mat(0x4b5a62), mat(0x5c5c63), mat(0x4a5351), mat(0x675b59)],
+  ember: mat(0xd89259, { emissive: 0xae552c, emissiveIntensity: 0.55 }),
+  outpostSkin: [mat(0xa4a5a0), mat(0x868f8e), mat(0xb1a394), mat(0x768589)],
+  riverBed: mat(0x455f60), river: mat(0x4d8794, { transparent: true, opacity: 0.94 }),
+  riverLight: mat(0x86b6b6, { emissive: 0x385e5d, emissiveIntensity: 0.12 }),
+  riverBank: mat(0xb5a98a), reed: mat(0x809663),
 }
 const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xffdc86, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
 
@@ -97,33 +109,44 @@ function addGarden(parent: THREE.Object3D, x: number, z: number, seed: number): 
   }
 }
 
-function addPerson(parent: THREE.Group, id: string, x: number, z: number, faceBack: boolean): PersonRig {
+function addPerson(parent: THREE.Group, id: string, x: number, z: number, faceBack: boolean, source: Project['source']): PersonRig {
   const seed = hash(id)
-  const cloth = materials.cloth[seed % materials.cloth.length]
-  const skin = materials.skin[(seed >>> 5) % materials.skin.length]
-  const hair = materials.hair[(seed >>> 9) % materials.hair.length]
+  const codex = source === 'codex'
+  const cloth = codex ? materials.outpostCloth[seed % materials.outpostCloth.length] : materials.cloth[seed % materials.cloth.length]
+  const skin = codex ? materials.outpostSkin[(seed >>> 5) % materials.outpostSkin.length] : materials.skin[(seed >>> 5) % materials.skin.length]
+  const hair = codex ? materials.outpostTimber : materials.hair[(seed >>> 9) % materials.hair.length]
+  const chair = codex ? materials.outpostWood : materials.wood
+  const trim = codex ? materials.outpostStone : materials.wallShade
   const person = new THREE.Group()
   person.position.set(x, 0, z)
   person.rotation.y = faceBack ? Math.PI : 0
   person.userData.sessionId = id
   parent.add(person)
-  box(person, 0.75, 0.16, 0.68, materials.wood, 0, 0.52, -0.14)
-  box(person, 0.78, 0.74, 0.15, materials.timber, 0, 0.88, -0.52)
-  for (const leg of [-0.27, 0.27]) box(person, 0.13, 0.47, 0.14, materials.timber, leg, 0.23, -0.14)
+  box(person, 0.75, 0.16, 0.68, chair, 0, 0.52, -0.14)
+  box(person, 0.78, 0.74, 0.15, codex ? materials.outpostTimber : materials.timber, 0, 0.88, -0.52)
+  for (const leg of [-0.27, 0.27]) box(person, 0.13, 0.47, 0.14, codex ? materials.outpostTimber : materials.timber, leg, 0.23, -0.14)
   const body = new THREE.Group()
   person.add(body)
   box(body, 0.76, 0.72, 0.56, cloth, 0, 1.01, -0.02)
   box(body, 0.8, 0.19, 0.62, cloth, 0, 0.65, 0.0)
-  box(body, 0.47, 0.59, 0.025, materials.wallShade, 0, 1.01, 0.27)
-  box(body, 0.52, 0.12, 0.07, materials.timber, 0, 0.75, 0.31)
-  box(body, 0.13, 0.14, 0.08, materials.woodLight, 0, 0.75, 0.35)
+  box(body, 0.47, 0.59, 0.025, trim, 0, 1.01, 0.27)
+  box(body, 0.52, 0.12, 0.07, codex ? materials.outpostTimber : materials.timber, 0, 0.75, 0.31)
+  box(body, 0.13, 0.14, 0.08, codex ? materials.outpostAccent : materials.woodLight, 0, 0.75, 0.35)
+  if (codex) {
+    box(body, 0.15, 0.13, 0.04, materials.outpostAccent, 0, 1.26, 0.31)
+    box(body, 0.31, 0.06, 0.04, materials.outpostTimber, 0, 1.06, 0.31)
+  }
   const head = new THREE.Group()
   head.position.set(0, 1.42, 0)
   body.add(head)
   box(head, 0.66, 0.61, 0.59, skin, 0, 0.22, 0)
   box(head, 0.72, 0.14, 0.64, hair, 0, 0.54, -0.01)
   box(head, 0.68, 0.18, 0.16, hair, 0, 0.43, -0.31)
-  if (seed % 3 === 0) {
+  if (codex) {
+    box(head, 0.77, 0.19, 0.73, materials.outpostBanner, 0, 0.61, 0)
+    box(head, 0.84, 0.085, 0.77, materials.outpostRoofTrim, 0, 0.52, 0.02)
+    box(head, 0.08, 0.14, 0.2, materials.outpostAccent, 0, 0.68, 0.3)
+  } else if (seed % 3 === 0) {
     box(head, 0.82, 0.08, 0.72, materials.woodLight, 0, 0.65, 0)
     box(head, 0.59, 0.24, 0.57, materials.wood, 0, 0.79, -0.02)
   } else if (seed % 3 === 1) {
@@ -134,9 +157,9 @@ function addPerson(parent: THREE.Group, id: string, x: number, z: number, faceBa
   box(head, 0.15, 0.24, 0.19, skin, 0, 0.20, 0.38)
   box(head, 0.13, 0.08, 0.07, skin, 0, 0.09, 0.47)
   for (const side of [-1, 1]) {
-    box(head, 0.16, 0.055, 0.055, hair, side * 0.19, 0.39, 0.31)
+    box(head, codex ? 0.2 : 0.16, 0.055, 0.055, hair, side * 0.19, codex ? 0.4 : 0.39, 0.31)
     box(head, 0.065, 0.07, 0.028, materials.dark, side * 0.19, 0.28, 0.31)
-    box(head, 0.11, 0.045, 0.045, materials.wallShade, side * 0.35, 0.19, 0.04)
+    box(head, 0.11, 0.045, 0.045, trim, side * 0.35, 0.19, 0.04)
   }
   const leftArm = new THREE.Group()
   const rightArm = new THREE.Group()
@@ -164,39 +187,49 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
   const seatColumns = Math.max(2, Math.ceil(project.sessions.length / 2))
   const width = Math.max(9.4, seatColumns * 1.34 + 3.5)
   const depth = 7.5
-  const roof = materials.roof[index % materials.roof.length]
+  const codex = project.source === 'codex'
+  const stone = codex ? materials.outpostStone : materials.stone
+  const stoneEdge = codex ? materials.outpostStoneDark : materials.stoneEdge
+  const wall = codex ? materials.outpostWall : materials.wall
+  const wallShade = codex ? materials.outpostWallShade : materials.wallShade
+  const timber = codex ? materials.outpostTimber : materials.timber
+  const wood = codex ? materials.outpostWood : materials.wood
+  const woodLight = codex ? materials.outpostWoodLight : materials.woodLight
+  const roof = codex ? materials.outpostRoof : materials.roof[index % materials.roof.length]
+  const roofTrim = codex ? materials.outpostRoofTrim : timber
+  const cobble = (variant: number) => codex ? (variant % 2 ? stone : stoneEdge) : materials.cobble[variant % 4]
   // A front cutaway reveals the communal table; the stepped gable remains a cottage silhouette.
-  box(group, width + 1.1, 0.37, depth + 1.1, materials.stoneEdge, 0, 0.13, 0)
-  box(group, width + 0.5, 0.18, depth + 0.6, materials.wood, 0, 0.4, 0)
+  box(group, width + 1.1, 0.37, depth + 1.1, stoneEdge, 0, 0.13, 0)
+  box(group, width + 0.5, 0.18, depth + 0.6, wood, 0, 0.4, 0)
   for (let plank = 0; plank < 7; plank++) {
     const plankZ = -depth / 2 + 0.55 + plank * 1.03
-    box(group, width - 0.42, 0.025, 0.045, plank % 2 ? materials.timber : materials.woodLight, 0, 0.505, plankZ).castShadow = false
+    box(group, width - 0.42, 0.025, 0.045, plank % 2 ? timber : woodLight, 0, 0.505, plankZ).castShadow = false
   }
   for (let row = 0; row < 2; row++) {
     for (let column = 0; column < Math.ceil(width / 1.1); column++) {
       const blockX = -width / 2 + 0.57 + column * 1.08
-      box(group, 1.02, 0.48, 0.43, materials.cobble[(column + row + index) % 4], blockX, 0.79 + row * 0.49, -depth / 2 + 0.1)
+      box(group, 1.02, 0.48, 0.43, cobble(column + row + index), blockX, 0.79 + row * 0.49, -depth / 2 + 0.1)
     }
   }
-  box(group, width, 2.45, 0.35, materials.wall, 0, 2.5, -depth / 2 + 0.19)
-  box(group, width, 0.33, 0.49, materials.timber, 0, 3.84, -depth / 2 + 0.23)
+  box(group, width, 2.45, 0.35, wall, 0, 2.5, -depth / 2 + 0.19)
+  box(group, width, 0.33, 0.49, timber, 0, 3.84, -depth / 2 + 0.23)
   for (const side of [-1, 1]) {
     const edge = side * (width / 2 - 0.12)
-    box(group, 0.42, 3.36, depth - 0.3, materials.wall, edge, 2.16, 0)
-    box(group, 0.55, 1.13, depth - 0.25, materials.stone, edge, 0.99, 0)
+    box(group, 0.42, 3.36, depth - 0.3, wall, edge, 2.16, 0)
+    box(group, 0.55, 1.13, depth - 0.25, stone, edge, 0.99, 0)
     for (const beamZ of [-depth / 2 + 0.3, 0, depth / 2 - 0.25]) {
-      box(group, 0.28, 3.9, 0.33, materials.timber, edge, 2.39, beamZ)
+      box(group, 0.28, 3.9, 0.33, timber, edge, 2.39, beamZ)
     }
-    box(group, 0.29, 0.27, depth - 0.3, materials.timber, edge, 3.6, 0)
-    box(group, 0.68, 0.48, 0.72, materials.cobble[(index + (side + 1)) % 4], edge, 0.5, depth / 2 - 0.25)
+    box(group, 0.29, 0.27, depth - 0.3, timber, edge, 3.6, 0)
+    box(group, 0.68, 0.48, 0.72, cobble(index + side + 1), edge, 0.5, depth / 2 - 0.25)
     const frontX = side * (width / 2 - 1.08)
-    box(group, 2.04, 0.78, 0.3, materials.cobble[(index + side + 3) % 4], frontX, 0.9, depth / 2 - 0.13)
-    box(group, 2.04, 1.03, 0.3, materials.wall, frontX, 1.8, depth / 2 - 0.13)
-    box(group, 2.13, 0.19, 0.38, materials.timber, frontX, 2.43, depth / 2 - 0.13)
+    box(group, 2.04, 0.78, 0.3, cobble(index + side + 3), frontX, 0.9, depth / 2 - 0.13)
+    box(group, 2.04, 1.03, 0.3, wall, frontX, 1.8, depth / 2 - 0.13)
+    box(group, 2.13, 0.19, 0.38, timber, frontX, 2.43, depth / 2 - 0.13)
   }
-  box(group, width + 0.45, 0.25, 0.43, materials.timber, 0, 4.04, depth / 2 - 0.18)
+  box(group, width + 0.45, 0.25, 0.43, timber, 0, 4.04, depth / 2 - 0.18)
   for (const beamX of [-width / 2 + 0.28, 0, width / 2 - 0.28]) {
-    box(group, 0.28, 3.75, 0.46, materials.timber, beamX, 2.26, -depth / 2 + 0.37)
+    box(group, 0.28, 3.75, 0.46, timber, beamX, 2.26, -depth / 2 + 0.37)
   }
   // Roof courses rise in block-sized steps toward the ridge. Only the rear half is roofed.
   const roofDepth = 3.45
@@ -209,130 +242,252 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
       const strip = box(group, courseWidth + 0.06, 0.34, roofDepth, roof, side * offset, elevation, roofZ)
       strip.castShadow = false
       for (let tile = 0; tile < 3; tile++) {
-        box(group, courseWidth - 0.12, 0.035, 0.055, materials.timber, side * offset, elevation + 0.19, roofZ - roofDepth / 2 + 0.55 + tile * 1.05).castShadow = false
+        box(group, courseWidth - 0.12, 0.035, 0.055, roofTrim, side * offset, elevation + 0.19, roofZ - roofDepth / 2 + 0.55 + tile * 1.05).castShadow = false
       }
     }
-    box(group, width - course * courseWidth * 2, 0.34, 0.4, materials.wallShade, 0, 4.11 + course * 0.39, -depth / 2 + 0.2)
+    box(group, width - course * courseWidth * 2, 0.34, 0.4, wallShade, 0, 4.11 + course * 0.39, -depth / 2 + 0.2)
   }
-  box(group, 0.52, 0.37, roofDepth + 0.2, materials.timber, 0, 5.54, roofZ)
-  if (index % 2 === 0) {
-    box(group, 0.9, 1.5, 0.91, materials.stoneEdge, width * 0.29, 5.38, -depth / 2 + 0.65)
-    box(group, 1.12, 0.18, 1.12, materials.cobble[index % 4], width * 0.29, 6.15, -depth / 2 + 0.65)
+  box(group, 0.52, 0.37, roofDepth + 0.2, roofTrim, 0, 5.54, roofZ)
+  if (index % 2 === 0 && !codex) {
+    box(group, 0.9, 1.5, 0.91, stoneEdge, width * 0.29, 5.38, -depth / 2 + 0.65)
+    box(group, 1.12, 0.18, 1.12, cobble(index), width * 0.29, 6.15, -depth / 2 + 0.65)
   }
   for (const windowX of [-width * 0.26, width * 0.26]) {
-    box(group, 1.22, 0.93, 0.09, materials.timber, windowX, 2.6, -depth / 2 + 0.42)
+    box(group, 1.22, 0.93, 0.09, timber, windowX, 2.6, -depth / 2 + 0.42)
     box(group, 0.98, 0.68, 0.1, materials.glass, windowX, 2.6, -depth / 2 + 0.49)
-    box(group, 0.1, 0.73, 0.11, materials.timber, windowX, 2.6, -depth / 2 + 0.55)
-    box(group, 1.42, 0.13, 0.28, materials.woodLight, windowX, 2.08, -depth / 2 + 0.55)
+    box(group, 0.1, 0.73, 0.11, timber, windowX, 2.6, -depth / 2 + 0.55)
+    box(group, 1.42, 0.13, 0.28, woodLight, windowX, 2.08, -depth / 2 + 0.55)
   }
-  box(group, 2.25, 0.25, 0.64, materials.stone, 0, 0.25, depth / 2 + 0.65)
-  box(group, 1.85, 0.17, 0.73, materials.cobble[index % 4], 0, 0.16, depth / 2 + 1.02)
+  box(group, 2.25, 0.25, 0.64, stone, 0, 0.25, depth / 2 + 0.65)
+  box(group, 1.85, 0.17, 0.73, cobble(index), 0, 0.16, depth / 2 + 1.02)
 
   const tableLength = Math.max(4.15, seatColumns * 1.31 + 0.75)
-  box(group, tableLength, 0.27, 2.18, materials.woodLight, 0, 1.14, 0.17)
-  box(group, tableLength, 0.23, 0.14, materials.wood, 0, 0.93, 1.23)
+  box(group, tableLength, 0.27, 2.18, woodLight, 0, 1.14, 0.17)
+  box(group, tableLength, 0.23, 0.14, wood, 0, 0.93, 1.23)
   for (const xLeg of [-tableLength / 2 + 0.22, tableLength / 2 - 0.22]) {
-    for (const zLeg of [-0.68, 0.95]) box(group, 0.18, 0.83, 0.18, materials.timber, xLeg, 0.65, zLeg)
+    for (const zLeg of [-0.68, 0.95]) box(group, 0.18, 0.83, 0.18, timber, xLeg, 0.65, zLeg)
   }
   for (let paper = 0; paper < Math.min(3, seatColumns); paper++) {
     const xPaper = (paper - (Math.min(3, seatColumns) - 1) / 2) * 1.48
-    box(group, 0.43, 0.018, 0.37, materials.parchment, xPaper, 1.225, 0.15)
+    box(group, 0.43, 0.018, 0.37, codex ? materials.riverLight : materials.parchment, xPaper, 1.29, 0.15)
   }
   project.sessions.forEach((session, seatIndex) => {
     const back = seatIndex % 2 === 0
     const column = Math.floor(seatIndex / 2)
     const seatX = (column - (seatColumns - 1) / 2) * 1.31
     const seatZ = back ? -1.59 : 1.95
-    const rig = addPerson(group, session.id, seatX, seatZ, !back)
+    const rig = addPerson(group, session.id, seatX, seatZ, !back, project.source)
     rigs.set(session.id, rig)
     seats.set(session.id, new THREE.Vector3(x + seatX, 3 - (seatIndex % 3) * 0.65, z + seatZ))
   })
   const shelfX = width / 2 - 0.75
-  box(group, 0.78, 1.4, 0.4, materials.timber, shelfX, 1.2, -depth / 2 + 0.68)
-  for (let item = 0; item < 3; item++) box(group, 0.12, 0.4 + item * 0.06, 0.22, materials.cloth[(index + item) % materials.cloth.length], shelfX - 0.2 + item * 0.2, 1.16, -depth / 2 + 0.92)
-  box(group, 0.67, 0.51, 0.68, materials.wood, -width / 2 + 0.78, 0.66, depth / 2 - 0.86)
+  box(group, 0.78, 1.4, 0.4, timber, shelfX, 1.2, -depth / 2 + 0.68)
+  for (let item = 0; item < 3; item++) box(group, 0.12, 0.4 + item * 0.06, 0.22, codex ? materials.outpostAccent : materials.cloth[(index + item) % materials.cloth.length], shelfX - 0.2 + item * 0.2, 1.16, -depth / 2 + 0.92)
+  box(group, 0.67, 0.51, 0.68, wood, -width / 2 + 0.78, 0.66, depth / 2 - 0.86)
   box(group, 0.77, 0.12, 0.77, roof, -width / 2 + 0.78, 0.94, depth / 2 - 0.86)
   for (const side of [-1, 1]) {
     const postX = side * (width / 2 - 0.92)
-    box(group, 0.21, 0.7, 0.2, materials.timber, postX, 2.86, depth / 2 - 0.28)
-    box(group, 0.45, 0.42, 0.38, materials.lamp, postX, 2.51, depth / 2 - 0.28).castShadow = false
+    box(group, 0.21, 0.7, 0.2, timber, postX, 2.86, depth / 2 - 0.28)
+    box(group, 0.45, 0.42, 0.38, codex ? materials.outpostAccent : materials.lamp, postX, 2.51, depth / 2 - 0.28).castShadow = false
     box(group, 0.56, 0.1, 0.49, materials.dark, postX, 2.77, depth / 2 - 0.28)
+  }
+  if (codex) {
+    // Draped geometric insignia and storage give the outpost its own working culture.
+    box(group, 1.06, 1.62, 0.09, materials.outpostBanner, 0, 2.9, -depth / 2 + 0.56)
+    box(group, 0.24, 0.44, 0.11, materials.outpostAccent, 0, 3.04, -depth / 2 + 0.64)
+    box(group, 0.52, 0.16, 0.12, materials.outpostAccent, 0, 2.79, -depth / 2 + 0.64)
+    for (let crate = 0; crate < 2; crate++) {
+      const crateX = -width / 2 + 0.76 + crate * 0.75
+      box(group, 0.65, 0.5 + crate * 0.22, 0.69, wood, crateX, 0.66 + crate * 0.11, depth / 2 - 0.82)
+      box(group, 0.7, 0.09, 0.73, timber, crateX, 0.95 + crate * 0.22, depth / 2 - 0.82)
+    }
+    box(group, 1.1, 0.06, 0.71, materials.outpostBanner, 0, 1.31, 0.18)
+    box(group, 0.78, 0.027, 0.07, materials.riverLight, 0, 1.35, 0.12)
   }
   return { point: new THREE.Vector3(x, 6.45, z - depth / 2), width }
 }
 
+function addDarkTree(parent: THREE.Object3D, x: number, z: number, size = 1): void {
+  const tree = new THREE.Group()
+  tree.position.set(x, 0, z)
+  tree.scale.setScalar(size)
+  parent.add(tree)
+  box(tree, 0.42, 2.55, 0.42, materials.outpostTimber, 0, 1.28, 0)
+  box(tree, 1.85, 0.62, 1.85, materials.outpostGrass, 0, 2.38, 0)
+  box(tree, 1.48, 0.74, 1.48, materials.leaf, 0, 3.02, 0)
+  box(tree, 0.92, 0.77, 0.92, materials.outpostGrass, 0, 3.75, 0)
+}
+
+function addRiver(scene: THREE.Scene, size: number): void {
+  for (let section = 0; section < Math.ceil(size / 2.1); section++) {
+    const z = -size / 2 + section * 2.1 + 1.05
+    const x = Math.sin(z * 0.14) * 0.92 + Math.sin(z * 0.35) * 0.26
+    box(scene, 7.7, 0.13, 2.35, materials.riverBed, x, -0.005, z)
+    box(scene, 6.36, 0.065, 2.36, materials.river, x, 0.075, z).castShadow = false
+    for (const side of [-1, 1]) {
+      box(scene, 0.91, 0.16, 2.34, side < 0 ? materials.riverBank : materials.outpostStone, x + side * 3.68, 0.04, z)
+      if (section % 3 === 0) box(scene, 0.4, 0.17, 0.48, materials.cobble[(section + side + 5) % 4], x + side * 4.25, 0.1, z - 0.55)
+    }
+    if (section % 2 === 0) {
+      box(scene, 0.86, 0.018, 0.08, materials.riverLight, x - 1.1, 0.115, z + 0.31).castShadow = false
+      box(scene, 0.46, 0.018, 0.07, materials.riverLight, x + 1.0, 0.115, z - 0.38).castShadow = false
+    }
+  }
+}
+
+function addBridge(scene: THREE.Scene): void {
+  for (let plank = 0; plank < 12; plank++) {
+    const x = -4.47 + plank * 0.82
+    box(scene, 0.77, 0.22, 3.75, plank % 3 === 0 ? materials.woodLight : materials.wood, x, 0.28, 0)
+  }
+  for (const side of [-1, 1]) {
+    box(scene, 9.8, 0.15, 0.18, materials.timber, 0, 0.95, side * 1.83)
+    for (let post = -2; post <= 2; post++) box(scene, 0.18, 0.77, 0.18, materials.timber, post * 2.13, 0.63, side * 1.83)
+  }
+  box(scene, 1.0, 0.15, 3.9, materials.path, -5.0, 0.12, 0)
+  box(scene, 1.0, 0.15, 3.9, materials.outpostStone, 5.0, 0.12, 0)
+}
+
+function addPath(scene: THREE.Scene, fromX: number, fromZ: number, toX: number, toZ: number, codex: boolean): void {
+  const dx = toX - fromX, dz = toZ - fromZ
+  const steps = Math.max(2, Math.round(Math.hypot(dx, dz) / 1.1))
+  const angle = Math.atan2(dx, dz)
+  for (let step = 0; step < steps; step++) {
+    const t = (step + 0.5) / steps
+    const x = fromX + dx * t, z = fromZ + dz * t
+    const tile = box(scene, 2.27, 0.07, 1.14, codex ? materials.outpostStoneDark : materials.path, x, 0.025, z)
+    tile.rotation.y = angle
+    for (const side of [-1, 0, 1]) {
+      const stone = box(scene, 0.61, 0.075, 0.69, codex ? (step % 3 ? materials.outpostStone : materials.outpostWood) : materials.cobble[(step + side + 4) % 4], x + Math.cos(angle) * side * 0.65, 0.077, z - Math.sin(angle) * side * 0.65)
+      stone.rotation.y = angle
+    }
+  }
+}
+
+function addWell(scene: THREE.Scene, x: number, z: number): void {
+  const group = new THREE.Group()
+  group.position.set(x, 0, z)
+  scene.add(group)
+  box(group, 3.24, 0.3, 3.24, materials.stoneEdge, 0, 0.35, 0)
+  box(group, 2.55, 0.35, 2.55, materials.cobble[1], 0, 0.68, 0)
+  box(group, 1.88, 0.12, 1.88, materials.dark, 0, 0.89, 0)
+  for (const side of [-1, 1]) box(group, 0.22, 2.55, 0.24, materials.timber, side * 1.42, 2.17, 0)
+  box(group, 3.57, 0.27, 1.4, materials.roof[0], 0, 3.55, 0)
+  box(group, 2.2, 0.25, 1.58, materials.roof[0], 0, 3.84, 0)
+  box(group, 0.65, 0.42, 0.62, materials.wood, 0, 2.0, 0)
+  box(group, 0.22, 0.75, 0.22, materials.timber, 0, 2.33, 0)
+}
+
+function addWatchPost(scene: THREE.Scene, x: number, z: number): void {
+  const group = new THREE.Group()
+  group.position.set(x, 0, z)
+  scene.add(group)
+  box(group, 5.6, 0.42, 5.6, materials.outpostStoneDark, 0, 0.25, 0)
+  for (const sideX of [-1, 1]) for (const sideZ of [-1, 1]) {
+    box(group, 0.5, 4.1, 0.5, materials.outpostTimber, sideX * 2.1, 2.45, sideZ * 2.1)
+    box(group, 0.8, 0.45, 0.8, materials.outpostStone, sideX * 2.1, 0.67, sideZ * 2.1)
+  }
+  box(group, 5.2, 0.26, 5.2, materials.outpostWood, 0, 4.53, 0)
+  for (const side of [-1, 1]) {
+    box(group, 5.35, 0.45, 0.33, materials.outpostStoneDark, 0, 4.93, side * 2.47)
+    box(group, 0.33, 0.45, 5.35, materials.outpostStoneDark, side * 2.47, 4.93, 0)
+  }
+  box(group, 5.8, 0.33, 5.8, materials.outpostRoof, 0, 5.65, 0)
+  box(group, 4.7, 0.39, 4.7, materials.outpostRoofTrim, 0, 6.03, 0)
+  box(group, 3.5, 0.37, 3.5, materials.outpostRoof, 0, 6.41, 0)
+  box(group, 0.19, 2.1, 0.19, materials.outpostTimber, 0, 7.65, 0)
+  box(group, 1.21, 0.98, 0.09, materials.outpostBanner, 0.58, 7.77, 0)
+  box(group, 0.17, 0.56, 0.1, materials.outpostAccent, 0.52, 7.78, 0.06)
+  box(group, 0.56, 0.12, 0.11, materials.outpostAccent, 0.52, 7.57, 0.06)
+  box(group, 1.56, 0.36, 1.35, materials.outpostWood, 0, 0.53, 0)
+}
+
+function addOutpostBanner(scene: THREE.Scene, x: number, z: number): void {
+  box(scene, 0.2, 3.45, 0.2, materials.outpostTimber, x, 1.76, z)
+  box(scene, 1.12, 0.16, 0.19, materials.outpostWoodLight, x + 0.46, 3.22, z)
+  box(scene, 0.91, 1.24, 0.1, materials.outpostBanner, x + 0.58, 2.52, z)
+  box(scene, 0.16, 0.63, 0.12, materials.outpostAccent, x + 0.58, 2.58, z + 0.06)
+  box(scene, 0.49, 0.12, 0.12, materials.outpostAccent, x + 0.58, 2.36, z + 0.06)
+  box(scene, 0.4, 0.37, 0.4, materials.outpostStoneDark, x, 0.2, z)
+}
+
+function addBrazier(scene: THREE.Scene, x: number, z: number): void {
+  box(scene, 0.56, 0.72, 0.56, materials.outpostStoneDark, x, 0.38, z)
+  box(scene, 0.96, 0.24, 0.96, materials.outpostTimber, x, 0.86, z)
+  box(scene, 0.54, 0.14, 0.54, materials.ember, x, 1.04, z).castShadow = false
+  box(scene, 0.18, 0.35, 0.18, materials.ember, x - 0.12, 1.23, z).castShadow = false
+  box(scene, 0.12, 0.26, 0.13, materials.ember, x + 0.14, 1.19, z + 0.07).castShadow = false
+}
+
 function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, buildings: Map<string, Place>): { size: number } {
   const maxWidth = Math.max(9.4, ...projects.map((project) => Math.max(9.4, Math.ceil(project.sessions.length / 2) * 1.34 + 3.5)))
-  const count = Math.max(4, projects.length)
-  const ringCount = Math.max(4, Math.min(8, count))
-  const ringRadius = Math.max(15.5, maxWidth * 1.08 + 5)
-  const outerRadius = ringRadius + (count > 8 ? Math.ceil((count - 8) / 10) * (maxWidth + 8) : 0)
-  const size = outerRadius * 2 + maxWidth + 17
+  const claudeProjects = projects.filter((project) => project.source !== 'codex')
+  const codexProjects = projects.filter((project) => project.source === 'codex')
+  const maxColumns = Math.max(1, Math.ceil(Math.max(claudeProjects.length, codexProjects.length) / 4))
+  const size = Math.max(68, 68 + (maxColumns - 1) * (maxWidth + 7) * 2)
   box(scene, size, 0.7, size, materials.ground, 0, -0.42, 0)
-  box(scene, 12.8, 0.1, 12.8, materials.path, 0, 0.005, 0)
-  for (let row = -5; row <= 5; row++) {
-    for (let column = -5; column <= 5; column++) {
-      const variant = (row * 7 + column * 11 + 100) % 4
-      const px = column * 1.08 + (row % 2) * 0.14
-      const pz = row * 1.08
-      box(scene, 0.94, 0.08, 0.94, materials.cobble[variant], px, 0.09, pz)
+  box(scene, size / 2 - 3.9, 0.045, size, materials.outpostGround, size / 4 + 1.95, -0.025, 0)
+  addRiver(scene, size)
+  addBridge(scene)
+  const districtX = 17.5
+  if (claudeProjects.length) {
+    addWell(scene, -districtX, 0)
+    addPath(scene, -districtX + 2.2, 0, -5.4, 0, false)
+    for (const z of [-4.2, 4.2]) addLamp(scene, -districtX + 4.1, z)
+  }
+  if (codexProjects.length) {
+    addWatchPost(scene, districtX, 0)
+    addPath(scene, 5.4, 0, districtX - 2.8, 0, true)
+    addBrazier(scene, districtX - 4.4, -3.7)
+    addBrazier(scene, districtX - 4.4, 3.7)
+    for (const z of [-4.5, 4.5]) {
+      box(scene, 0.37, 1.3, 0.37, materials.outpostStoneDark, districtX - 5, 0.7, z)
+      box(scene, 0.56, 0.38, 0.55, materials.outpostAccent, districtX - 5, 1.5, z)
     }
   }
-  const plaza = new THREE.Group()
-  scene.add(plaza)
-  box(plaza, 3.24, 0.3, 3.24, materials.stoneEdge, 0, 0.35, 0)
-  box(plaza, 2.55, 0.35, 2.55, materials.cobble[1], 0, 0.68, 0)
-  box(plaza, 1.88, 0.12, 1.88, materials.dark, 0, 0.89, 0)
-  for (const side of [-1, 1]) {
-    box(plaza, 0.22, 2.55, 0.24, materials.timber, side * 1.42, 2.17, 0)
-    box(plaza, 0.18, 0.76, 0.18, materials.timber, side * 1.42, 1.22, 0)
-  }
-  box(plaza, 3.57, 0.27, 1.4, materials.roof[0], 0, 3.55, 0)
-  box(plaza, 2.2, 0.25, 1.58, materials.roof[0], 0, 3.84, 0)
-  box(plaza, 0.65, 0.42, 0.62, materials.wood, 0, 2.0, 0)
-  box(plaza, 0.22, 0.75, 0.22, materials.timber, 0, 2.33, 0)
-  for (const [x, z] of [[-5.25, -5.25], [5.25, -5.25], [-5.25, 5.25], [5.25, 5.25]]) addLamp(scene, x, z)
   const positions: Array<[number, number]> = []
-  projects.forEach((project, index) => {
-    const ring = index < 8 ? 0 : Math.floor((index - 8) / 10) + 1
-    const inRing = ring === 0 ? Math.min(projects.length, 8) : Math.min(10, projects.length - 8 - (ring - 1) * 10)
-    const slot = ring === 0 ? index : (index - 8) % 10
-    const angle = -Math.PI * 0.72 + (slot / Math.max(inRing, ringCount)) * Math.PI * 2
-    const radius = ringRadius + ring * (maxWidth + 8)
-    const x = Math.sin(angle) * radius
-    const z = Math.cos(angle) * radius
-    positions.push([x, z])
-    const steps = Math.max(3, Math.round(radius / 1.12))
-    for (let step = 0; step < steps; step++) {
-      const t = (step + 0.5) / steps
-      const wobble = Math.sin(step * 2.38 + index) * 0.21
-      const tileX = x * t + Math.cos(angle) * wobble
-      const tileZ = z * t - Math.sin(angle) * wobble
-      const tile = box(scene, 2.36, 0.07, 1.14, materials.path, tileX, 0.03, tileZ)
-      tile.rotation.y = -angle
-      for (const side of [-1, 0, 1]) {
-        const stone = box(scene, 0.58 + ((step + side + 3) % 3) * 0.12, 0.085, 0.68, materials.cobble[(step + side + index + 4) % 4], tileX + Math.cos(angle) * side * 0.65, 0.08, tileZ - Math.sin(angle) * side * 0.65)
-        stone.rotation.y = -angle
+  for (const [source, districtProjects] of [['claude', claudeProjects], ['codex', codexProjects]] as const) {
+    const codex = source === 'codex'
+    const side = codex ? 1 : -1
+    districtProjects.forEach((project, index) => {
+      const column = Math.floor(index / 4)
+      const row = index % 4
+      const z = row < 2 ? (row === 0 ? -10.4 : 10.4) : (row === 2 ? -25 : 25)
+      const x = side * (districtX + column * (maxWidth + 7))
+      positions.push([x, z])
+      addPath(scene, side * districtX, z < 0 ? -2.4 : 2.4, x, z < 0 ? z + 5 : z - 5, codex)
+      const place = addBuilding(scene, project, index, x, z, seats, rigs)
+      buildings.set(project.id, place)
+      if (codex) {
+        addDarkTree(scene, x + place.width / 2 + 3.3, z - 2.2, 0.82)
+        addDarkTree(scene, x - place.width / 2 - 3.1, z + 1.3, 0.61)
+        box(scene, 1.34, 0.88, 1.1, materials.outpostWood, x + place.width / 2 + 1.7, 0.5, z + 3.2)
+        box(scene, 1.52, 0.13, 1.25, materials.outpostTimber, x + place.width / 2 + 1.7, 1.0, z + 3.2)
+        addOutpostBanner(scene, x - place.width / 2 - 1.6, z + 4.5)
+      } else {
+        addTree(scene, x - place.width / 2 - 2.8, z - 2.35, 0.78)
+        addTree(scene, x + place.width / 2 + 3.9, z + 1.0, 0.69)
+        addGarden(scene, x + place.width / 2 + 1.75, z - 2.35, index)
+        addLamp(scene, x - place.width / 2 - 0.72, z + 4.6)
       }
-    }
-    const place = addBuilding(scene, project, index, x, z, seats, rigs)
-    buildings.set(project.id, place)
-    addTree(scene, x - place.width / 2 - 1.95, z - 2.35, 0.82)
-    addTree(scene, x + place.width / 2 + 3.9, z + 1.0, 0.72)
-    addGarden(scene, x + place.width / 2 + 1.75, z - 2.35, index)
-    addLamp(scene, x - place.width / 2 - 0.72, z + 4.6)
-  })
+    })
+  }
   const seeded = (index: number) => { const n = Math.sin(index * 72.13 + 3.2) * 43758.5453; return n - Math.floor(n) }
-  for (let index = 0; index < Math.min(160, Math.round(size * 2.1)); index++) {
-    const x = (seeded(index * 2) - 0.5) * (size - 5)
-    const z = (seeded(index * 2 + 1) - 0.5) * (size - 5)
-    if (Math.abs(x) < 8 && Math.abs(z) < 8) continue
-    if (positions.some(([bx, bz]) => Math.abs(x - bx) < maxWidth / 2 + 2 && Math.abs(z - bz) < 6)) continue
-    if (seeded(index + 333) > 0.95) addTree(scene, x, z, 0.55 + seeded(index + 101) * 0.35)
+  for (let index = 0; index < Math.min(210, Math.round(size * 2.5)); index++) {
+    const x = (seeded(index * 2) - 0.5) * (size - 4)
+    const z = (seeded(index * 2 + 1) - 0.5) * (size - 4)
+    if (Math.abs(x) < 5.0 || (Math.abs(x + districtX) < 5 && Math.abs(z) < 5) || (Math.abs(x - districtX) < 5 && Math.abs(z) < 5)) continue
+    if (positions.some(([bx, bz]) => Math.abs(x - bx) < maxWidth / 2 + 2.4 && Math.abs(z - bz) < 6)) continue
+    if (x < 0) {
+      if (seeded(index + 333) > 0.94) addTree(scene, x, z, 0.53 + seeded(index + 101) * 0.28)
+      else {
+        box(scene, 0.13, 0.13, 0.13, materials.flower[index % materials.flower.length], x, 0.03, z)
+        box(scene, 0.23, 0.06, 0.12, index % 2 ? materials.grassLight : materials.grassDark, x + 0.24, 0.005, z)
+      }
+    } else if (seeded(index + 333) > 0.94) addDarkTree(scene, x, z, 0.5 + seeded(index + 101) * 0.28)
     else {
-      const flower = materials.flower[index % materials.flower.length]
-      box(scene, 0.13, 0.13, 0.13, flower, x, 0.03, z)
-      box(scene, 0.23, 0.06, 0.12, index % 2 ? materials.grassLight : materials.grassDark, x + 0.24, 0.005, z)
+      box(scene, 0.23, 0.13, 0.19, index % 3 ? materials.outpostStone : materials.outpostGrass, x, 0.03, z)
+      if (index % 5 === 0) box(scene, 0.07, 0.42, 0.07, materials.reed, x + 0.21, 0.21, z)
     }
   }
   return { size }
@@ -348,7 +503,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
   const callbacksRef = useRef({ onSelectSession, onFocusProject })
   callbacksRef.current = { onSelectSession, onFocusProject }
   const [unavailable, setUnavailable] = useState(false)
-  const signature = projects.map((project) => `${project.id}:${project.sessions.map((session) => session.id).join(',')}`).join('|')
+  const signature = projects.map((project) => `${project.id}:${project.source}:${project.sessions.map((session) => session.id).join(',')}`).join('|')
 
   useImperativeHandle(ref, () => ({
     fit() { const runtime = runtimeRef.current; if (runtime) { runtime.desiredTarget.set(0, 0, 0); runtime.desiredZoom = runtime.overviewZoom } },
@@ -493,15 +648,16 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
         if (!anchor) continue
         labelPoint.copy(anchor).project(camera)
         const onScreen = labelPoint.z < 1 && labelPoint.x > -1.12 && labelPoint.x < 1.12 && labelPoint.y > -1.12 && labelPoint.y < 1.12
-        const showSession = kind === 'project' || camera.zoom > runtime.overviewZoom * 1.55 || id === selectedRef.current
+        const showSession = kind !== 'session' || camera.zoom > runtime.overviewZoom * 1.55 || id === selectedRef.current
         label.style.visibility = onScreen && showSession ? 'visible' : 'hidden'
         if (onScreen && showSession) visibleLabels.push({ label, kind: kind || '', x: (labelPoint.x + 1) * host.clientWidth / 2, y: (1 - labelPoint.y) * host.clientHeight / 2 })
       }
       const occupied: { left: number; right: number; top: number; bottom: number }[] = []
-      for (const item of visibleLabels.sort((a, b) => (a.kind === 'project' ? -1 : 1) - (b.kind === 'project' ? -1 : 1))) {
+      const priority = (kind: string) => kind === 'project' ? -1 : 1
+      for (const item of visibleLabels.sort((a, b) => priority(a.kind) - priority(b.kind))) {
         const width = item.label.offsetWidth
         const height = item.label.offsetHeight
-        const offsets = item.kind === 'project' ? [0] : [0, -25, 25, -50, 50, -75, 75]
+        const offsets = item.kind === 'session' ? [0, -25, 25, -50, 50, -75, 75] : [0]
         let top = item.y
         for (const offset of offsets) {
           const candidate = item.y + offset
@@ -538,10 +694,10 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
   return <div className="world-host" ref={hostRef} aria-label="Interactive village map">
     {unavailable && <div className="world-unavailable">This browser cannot start the 3D village. Try enabling WebGL.</div>}
     <div className="world-label-layer">
-      {projects.map((project) => <button className="building-label" key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => callbacksRef.current.onFocusProject(project.id)} type="button">
-        <span className="building-label-kind">{project.kind}</span><strong>{project.name}</strong><small>{project.sessions.length} {project.sessions.length === 1 ? 'session' : 'sessions'}</small>
+      {projects.map((project) => <button className={`building-label ${project.source === 'codex' ? 'codex' : ''}`} key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => callbacksRef.current.onFocusProject(project.id)} type="button">
+        <span className="building-label-kind">{project.source} · {project.kind}</span><strong>{project.name}</strong><small>{project.sessions.length} {project.sessions.length === 1 ? 'session' : 'sessions'}</small>
       </button>)}
-      {projects.flatMap((project) => project.sessions.map((session) => <button className={`session-label ${selectedId === session.id ? 'is-selected' : ''}`} key={session.id} data-world-label="session" data-world-id={session.id} onClick={() => callbacksRef.current.onSelectSession(session.id)} type="button" title={session.name}>
+      {projects.flatMap((project) => project.sessions.map((session) => <button className={`session-label ${project.source === 'codex' ? 'codex' : ''} ${selectedId === session.id ? 'is-selected' : ''}`} key={session.id} data-world-label="session" data-world-id={session.id} onClick={() => callbacksRef.current.onSelectSession(session.id)} type="button" title={session.name}>
         <span className={`session-status ${session.status}`} />{session.name}
       </button>))}
     </div>

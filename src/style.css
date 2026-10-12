@@ -16,8 +16,15 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .building-label-kind { display: block; margin-bottom: 2px; color: #997255; font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
 .building-label strong { display: block; overflow: hidden; font-family: 'Fraunces', Georgia, serif; font-size: 16px; font-weight: 600; text-overflow: ellipsis; }
 .building-label small { display: block; margin-top: 2px; color: #8e876f; font-size: 10px; }
+.building-label.codex { border-color: #34444a; background: #3e4b4ded; box-shadow: 0 3px 0 #263337, 0 7px 15px #252f304a; color: #f5ecdf; }
+.building-label.codex::after { border-color: #34444a; background: #3e4b4d; }
+.building-label.codex:hover, .building-label.codex:focus-visible { background: #526164; }
+.building-label.codex .building-label-kind { color: #dfae8d; }
+.building-label.codex small { color: #c5c8bd; }
 .session-label { z-index: 4; max-width: 92px; padding: 4px 6px; overflow: hidden; border: 1px solid #ddd0af; border-radius: 4px; background: #fff9e9ec; box-shadow: 0 2px 8px #3036262a; color: #3d392e; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .session-label:hover, .session-label:focus-visible, .session-label.is-selected { border-color: #a46f47; background: #fff8de; }
+.session-label.codex { border-color: #637273; background: #38484be8; color: #f4e9d8; }
+.session-label.codex:hover, .session-label.codex:focus-visible, .session-label.codex.is-selected { border-color: #c18a70; background: #4e5f62; }
 .session-status { display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: #adad96; vertical-align: 1px; }
 .session-status.recent { background: #5d9475; box-shadow: 0 0 0 3px #71aa7945; }
 .session-status.unknown { background: #adad96; }
@@ -69,6 +76,12 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .portrait-nose { position: absolute; top: 14px; left: 13px; width: 9px; height: 12px; background: #bd8a64; box-shadow: 2px 2px 0 #9f7255; }
 .portrait-body { position: absolute; top: 48px; left: 19px; width: 50px; height: 39px; border: 3px solid #496657; background: #6e8e7f; box-shadow: inset 0 -9px 0 #597968; }
 .portrait-body::after { content: ''; position: absolute; left: 17px; bottom: 0; width: 9px; height: 24px; background: #c2b697; }
+.panel-portrait.codex { background: linear-gradient(150deg, #bbc5bb, #8d9d98); }
+.panel-portrait.codex .portrait-orbit { border-color: #748681; background: #8fa5a0; box-shadow: inset 0 -9px 0 #657e7b; }
+.panel-portrait.codex .portrait-body { border-color: #35464d; background: #55656b; box-shadow: inset 0 -9px 0 #3e5157; }
+.panel-portrait.codex .portrait-body::after { background: #a37664; }
+.panel-portrait.codex .portrait-head { border-color: #657574; border-top-color: #2d3740; background: #a0a8a2; box-shadow: 2px 3px 0 #5d6b69; }
+.panel-portrait.codex .portrait-nose { background: #89948e; box-shadow: 2px 2px 0 #6d7d78; }
 .panel-kicker { margin: 0 0 4px; color: #a07e5e; font-size: 9px; font-weight: 700; letter-spacing: .13em; }
 .session-panel h2 { margin: 0 0 21px; font-family: 'Fraunces', Georgia, serif; font-size: 27px; font-weight: 600; line-height: 1.16; overflow-wrap: anywhere; }
 .panel-activity { display: flex; align-items: flex-start; gap: 9px; padding: 12px; border: 1px solid #ded1af; border-radius: 5px; background: #fffaf0; }
