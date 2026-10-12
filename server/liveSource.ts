@@ -47,10 +47,18 @@ function codexLocation(value: unknown): { name: string; key: string } {
   const cwd = text(value, '', 1000).replaceAll('\\', '/')
   // Codex gives projectless chats dated local folders such as Documents/Codex/2026-10-09/c.
   // Their final path component is an arbitrary chat folder, not a project name.
-  if (/(?:^|\/)Documents\/Codex\/\d{4}-\d{2}-\d{2}\/[^/]+(?:\/.*)?$/.test(cwd)) {
-    return { name: 'Codex chats', key: 'codex:projectless-chats' }
+  if (!cwd || /(?:^|\/)Documents\/Codex\/\d{4}-\d{2}-\d{2}\/[^/]+(?:\/.*)?$/.test(cwd)) {
+    return { name: 'Outpost Hall', key: 'codex:commons' }
   }
-  return { name: projectName(cwd, 'Unmapped Codex work'), key: cwd || 'codex:unmapped-work' }
+  return { name: projectName(cwd, 'Outpost Hall'), key: cwd }
+}
+
+function claudeLocation(value: unknown): { name: string; key: string } {
+  const project = text(value, '', 1000)
+  if (!project || ['unknown', 'unmapped claude work', 'no project'].includes(project.toLowerCase())) {
+    return { name: 'Village Hall', key: 'claude:commons' }
+  }
+  return { name: projectName(project, 'Village Hall'), key: project }
 }
 
 function latestActivity(value: unknown): string {
@@ -149,9 +157,7 @@ export function mapSessions(source: Source, raw: RawSession[], days: number, now
     const id = text(item.id, '', 160)
     const meta = metadata.get(id)
     const rawProject = source === 'claude' ? item.project : meta?.cwd
-    const location = source === 'claude'
-      ? { name: projectName(rawProject, 'Unmapped Claude work'), key: text(rawProject, 'claude:unmapped-work', 1000) }
-      : codexLocation(rawProject)
+    const location = source === 'claude' ? claudeLocation(rawProject) : codexLocation(rawProject)
     const title = source === 'claude'
       ? text(item.title, `Claude session ${id.slice(0, 8)}`)
       : text(meta?.title, `Codex session ${id.slice(0, 8)}`)
@@ -162,19 +168,21 @@ export function mapSessions(source: Source, raw: RawSession[], days: number, now
   const projects: Project[] = []
   for (const [key, entries] of groups) {
     const name = entries[0].project
-    for (let start = 0; start < entries.length; start += MAX_PER_BUILDING) {
-      const annex = start / MAX_PER_BUILDING
-      const sessions: Session[] = entries.slice(start, start + MAX_PER_BUILDING).map((item) => ({
+    const commons = key === 'claude:commons' || key === 'codex:commons'
+    const capacity = commons ? MAX_PER_SOURCE : MAX_PER_BUILDING
+    for (let start = 0; start < entries.length; start += capacity) {
+      const annex = start / capacity
+      const sessions: Session[] = entries.slice(start, start + capacity).map((item) => ({
         id: `${source}:${item.id}`, externalId: item.id, name: item.title,
         updatedAt: new Date(item.lastSeen).toISOString(), activity: item.activity,
         status: now - item.lastSeen < 15 * 60_000 ? 'recent' : 'quiet',
       }))
       projects.push({ id: `${source}:${key}:${annex}`, name: annex ? `${name} · Annex ${annex + 1}` : name,
-        kind: source === 'claude' ? 'Workshop' : 'Outpost', source, sessions })
+        kind: commons ? 'Commons' : source === 'claude' ? 'Workshop' : 'Outpost', source, sessions })
     }
   }
-  if (source === 'codex' && records.some((item) => item.project === 'Unmapped Codex work')) {
-    notices.push('Some Codex sessions have no local project metadata and are grouped as unmapped work.')
+  if (source === 'codex' && records.some((item) => item.projectKey === 'codex:commons')) {
+    notices.push('Codex chats without project metadata are gathered in Outpost Hall.')
   }
   return { projects, notices }
 }

@@ -24,6 +24,10 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .building-label.codex:hover, .building-label.codex:focus-visible { background: #526164; }
 .building-label.codex .building-label-kind { color: #dfae8d; }
 .building-label.codex small { color: #c5c8bd; }
+.building-label.commons { border-color: #a47c43; background: #fff3d2; box-shadow: 0 3px 0 #ac8049, 0 7px 17px #37352b38; }
+.building-label.commons .building-label-kind { color: #9c7136; }
+.building-label.codex.commons { border-color: #b3855f; background: #354449; box-shadow: 0 3px 0 #8e644f, 0 7px 17px #252f304a; }
+.building-label.codex.commons .building-label-kind { color: #e9b894; }
 .session-label { z-index: 4; max-width: 92px; padding: 4px 6px; overflow: hidden; border: 1px solid #ddd0af; border-radius: 4px; background: #fff9e9ec; box-shadow: 0 2px 8px #3036262a; color: #3d392e; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .session-label:hover, .session-label:focus-visible, .session-label.is-selected { border-color: #a46f47; background: #fff8de; }
 .session-label.codex { border-color: #637273; background: #38484be8; color: #f4e9d8; }

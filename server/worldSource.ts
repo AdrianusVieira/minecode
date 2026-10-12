@@ -3,6 +3,10 @@ import type { Project, Session, WorldSnapshot } from '../src/worldData.js'
 import { getLiveSnapshot } from './liveSource.js'
 
 const examples: Project[] = [
+  { id: 'village-hall', name: 'Village Hall', kind: 'Commons', source: 'claude', sessions: [
+    { id: 'sample-village-hall-1', name: 'Explore an idea', updatedAt: null, activity: 'Thinking together', status: 'quiet' },
+    { id: 'sample-village-hall-2', name: 'Sketch a direction', updatedAt: null, activity: 'Reviewing options', status: 'recent' },
+  ] },
   { id: 'hearth', name: 'Hearth & Home', kind: 'Workshop', source: 'claude', sessions: [
     { id: 'sample-hearth-1', name: 'Shape the first welcome', updatedAt: null, activity: 'Sketching the arrival flow', status: 'recent' },
     { id: 'sample-hearth-2', name: 'Refine the warm palette', updatedAt: null, activity: 'Choosing materials', status: 'quiet' },
@@ -15,6 +19,11 @@ const examples: Project[] = [
   { id: 'lantern', name: 'Signal Keep', kind: 'Outpost', source: 'codex', sessions: [
     { id: 'sample-lantern-1', name: 'Prototype the signal', updatedAt: null, activity: 'Building a prototype', status: 'recent' },
     { id: 'sample-lantern-2', name: 'Test the watch', updatedAt: null, activity: 'Trying interactions', status: 'quiet' },
+  ] },
+  { id: 'outpost-hall', name: 'Outpost Hall', kind: 'Commons', source: 'codex', sessions: [
+    { id: 'sample-outpost-hall-1', name: 'Try a new approach', updatedAt: null, activity: 'Running an experiment', status: 'recent' },
+    { id: 'sample-outpost-hall-2', name: 'Inspect a small fix', updatedAt: null, activity: 'Looking through code', status: 'quiet' },
+    { id: 'sample-outpost-hall-3', name: 'Draft a quick answer', updatedAt: null, activity: 'Writing a response', status: 'quiet' },
   ] },
   { id: 'greenhouse', name: 'The Foundry', kind: 'Forge', source: 'codex', sessions: [
     { id: 'sample-green-1', name: 'Forge the roadmap', updatedAt: null, activity: 'Planning next steps', status: 'quiet' },

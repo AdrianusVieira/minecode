@@ -20,10 +20,11 @@ test('maps only recent telemetry fields into Claude buildings', () => {
 
 test('groups Codex sessions with missing metadata honestly', () => {
   const result = mapSessions('codex', [{ id: 'xyz', lastSeen: now, recentEvents: [{ name: 'sse_event' }] }], 1, now)
-  assert.equal(result.projects[0].name, 'Unmapped Codex work')
+  assert.equal(result.projects[0].name, 'Outpost Hall')
+  assert.equal(result.projects[0].kind, 'Commons')
   assert.equal(result.projects[0].sessions[0].name, 'Codex session xyz')
   assert.equal(result.projects[0].sessions[0].externalId, 'xyz')
-  assert.ok(result.notices.some((notice) => notice.includes('no local project metadata')))
+  assert.ok(result.notices.some((notice) => notice.includes('Outpost Hall')))
 })
 
 test('keeps projects with the same folder name separate', () => {
@@ -38,14 +39,36 @@ test('keeps projects with the same folder name separate', () => {
   assert.notEqual(result.projects[0].id, result.projects[1].id)
 })
 
-test('groups Codex dated chat folders without treating one-letter names as projects', () => {
+test('gathers Codex dated chat folders and unmapped sessions in one hall', () => {
   const result = mapSessions('codex', [
-    { id: 'one', lastSeen: now }, { id: 'two', lastSeen: now },
+    { id: 'one', lastSeen: now }, { id: 'two', lastSeen: now }, { id: 'three', lastSeen: now },
   ], 1, now, new Map([
     ['one', { cwd: '/Users/example/Documents/Codex/2026-10-09/c', title: 'Set up Postman requests' }],
     ['two', { cwd: '/Users/example/Documents/Codex/2026-10-10/l', title: 'Find Alexa options' }],
   ]))
   assert.equal(result.projects.length, 1)
-  assert.equal(result.projects[0].name, 'Codex chats')
-  assert.deepEqual(result.projects[0].sessions.map((session) => session.name), ['Set up Postman requests', 'Find Alexa options'])
+  assert.equal(result.projects[0].name, 'Outpost Hall')
+  assert.equal(result.projects[0].kind, 'Commons')
+  assert.deepEqual(result.projects[0].sessions.map((session) => session.name), ['Set up Postman requests', 'Find Alexa options', 'Codex session three'])
+})
+
+test('gathers Claude sessions without a project in Village Hall', () => {
+  const result = mapSessions('claude', [
+    { id: 'one', project: 'Unknown', lastSeen: now },
+    { id: 'two', lastSeen: now },
+    { id: 'three', project: '/work/actual-project', lastSeen: now },
+  ], 1, now)
+  assert.equal(result.projects.length, 2)
+  assert.equal(result.projects[0].name, 'Village Hall')
+  assert.equal(result.projects[0].kind, 'Commons')
+  assert.equal(result.projects[0].sessions.length, 2)
+  assert.equal(result.projects[1].name, 'actual-project')
+})
+
+test('keeps a crowded commons in one hall', () => {
+  const sessions = Array.from({ length: 37 }, (_, index) => ({ id: `chat-${index}`, lastSeen: now }))
+  const result = mapSessions('codex', sessions, 1, now)
+  assert.equal(result.projects.length, 1)
+  assert.equal(result.projects[0].name, 'Outpost Hall')
+  assert.equal(result.projects[0].sessions.length, 37)
 })

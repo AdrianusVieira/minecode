@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import type { Project } from './worldData'
 
 export type WorldControls = { fit: () => void; zoom: (direction: number) => void; focusProject: (id: string) => void }
-type Props = { projects: Project[]; selectedId: string | null; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void }
+type Props = { projects: Project[]; selectedId: string | null; focusedId: string | null; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void }
 type Place = { point: THREE.Vector3; width: number }
 type PersonRig = { body: THREE.Group; head: THREE.Group; leftArm: THREE.Group; rightArm: THREE.Group; ring: THREE.Mesh }
 type Runtime = {
@@ -180,13 +180,21 @@ function addPerson(parent: THREE.Group, id: string, x: number, z: number, faceBa
   return { body, head, leftArm, rightArm, ring }
 }
 
+function buildingMetrics(project: Project): { commons: boolean; seatColumns: number; tableRows: number; width: number; depth: number } {
+  const commons = project.kind === 'Commons'
+  const seatColumns = commons
+    ? Math.max(2, Math.min(8, Math.ceil(project.sessions.length / 2)))
+    : Math.max(2, Math.ceil(project.sessions.length / 2))
+  const tableRows = commons ? Math.max(1, Math.ceil(project.sessions.length / (seatColumns * 2))) : 1
+  return { commons, seatColumns, tableRows, width: Math.max(commons ? 13.2 : 9.4, seatColumns * 1.34 + 3.5),
+    depth: commons ? Math.max(10.5, tableRows * 3.45 + 3.4) : 7.5 }
+}
+
 function addBuilding(scene: THREE.Scene, project: Project, index: number, x: number, z: number, seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>): Place {
   const group = new THREE.Group()
   group.position.set(x, 0, z)
   scene.add(group)
-  const seatColumns = Math.max(2, Math.ceil(project.sessions.length / 2))
-  const width = Math.max(9.4, seatColumns * 1.34 + 3.5)
-  const depth = 7.5
+  const { commons, seatColumns, tableRows, width, depth } = buildingMetrics(project)
   const codex = project.source === 'codex'
   const stone = codex ? materials.outpostStone : materials.stone
   const stoneEdge = codex ? materials.outpostStoneDark : materials.stoneEdge
@@ -195,13 +203,13 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
   const timber = codex ? materials.outpostTimber : materials.timber
   const wood = codex ? materials.outpostWood : materials.wood
   const woodLight = codex ? materials.outpostWoodLight : materials.woodLight
-  const roof = codex ? materials.outpostRoof : materials.roof[index % materials.roof.length]
+  const roof = codex ? materials.outpostRoof : materials.roof[commons ? 0 : index % materials.roof.length]
   const roofTrim = codex ? materials.outpostRoofTrim : timber
   const cobble = (variant: number) => codex ? (variant % 2 ? stone : stoneEdge) : materials.cobble[variant % 4]
   // A front cutaway reveals the communal table; the stepped gable remains a cottage silhouette.
   box(group, width + 1.1, 0.37, depth + 1.1, stoneEdge, 0, 0.13, 0)
   box(group, width + 0.5, 0.18, depth + 0.6, wood, 0, 0.4, 0)
-  for (let plank = 0; plank < 7; plank++) {
+  for (let plank = 0; plank < Math.floor(depth / 1.03); plank++) {
     const plankZ = -depth / 2 + 0.55 + plank * 1.03
     box(group, width - 0.42, 0.025, 0.045, plank % 2 ? timber : woodLight, 0, 0.505, plankZ).castShadow = false
   }
@@ -261,21 +269,32 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
   box(group, 2.25, 0.25, 0.64, stone, 0, 0.25, depth / 2 + 0.65)
   box(group, 1.85, 0.17, 0.73, cobble(index), 0, 0.16, depth / 2 + 1.02)
 
-  const tableLength = Math.max(4.15, seatColumns * 1.31 + 0.75)
-  box(group, tableLength, 0.27, 2.18, woodLight, 0, 1.14, 0.17)
-  box(group, tableLength, 0.23, 0.14, wood, 0, 0.93, 1.23)
-  for (const xLeg of [-tableLength / 2 + 0.22, tableLength / 2 - 0.22]) {
-    for (const zLeg of [-0.68, 0.95]) box(group, 0.18, 0.83, 0.18, timber, xLeg, 0.65, zLeg)
-  }
-  for (let paper = 0; paper < Math.min(3, seatColumns); paper++) {
-    const xPaper = (paper - (Math.min(3, seatColumns) - 1) / 2) * 1.48
-    box(group, 0.43, 0.018, 0.37, codex ? materials.riverLight : materials.parchment, xPaper, 1.29, 0.15)
+  const tableLength = Math.max(commons ? 7.3 : 4.15, seatColumns * 1.31 + 0.75)
+  for (let row = 0; row < tableRows; row++) {
+    const tableZ = (row - (tableRows - 1) / 2) * 3.45 + 0.17
+    box(group, tableLength, 0.27, 2.18, woodLight, 0, 1.14, tableZ)
+    box(group, tableLength, 0.23, 0.14, wood, 0, 0.93, tableZ + 1.06)
+    for (const xLeg of [-tableLength / 2 + 0.22, tableLength / 2 - 0.22]) {
+      for (const zLeg of [-0.85, 0.78]) box(group, 0.18, 0.83, 0.18, timber, xLeg, 0.65, tableZ + zLeg)
+    }
+    for (let paper = 0; paper < Math.min(3, seatColumns); paper++) {
+      const xPaper = (paper - (Math.min(3, seatColumns) - 1) / 2) * 1.48
+      box(group, 0.43, 0.018, 0.37, codex ? materials.riverLight : materials.parchment, xPaper, 1.29, tableZ)
+    }
+    if (commons) {
+      box(group, 0.48, 0.07, 0.48, codex ? materials.outpostAccent : materials.lamp, 0, 1.35, tableZ).castShadow = false
+      box(group, 0.18, 0.22, 0.18, codex ? materials.outpostBanner : materials.dark, 0, 1.25, tableZ)
+    }
   }
   project.sessions.forEach((session, seatIndex) => {
-    const back = seatIndex % 2 === 0
-    const column = Math.floor(seatIndex / 2)
-    const seatX = (column - (seatColumns - 1) / 2) * 1.31
-    const seatZ = back ? -1.59 : 1.95
+    const tableIndex = Math.floor(seatIndex / (seatColumns * 2))
+    const seatWithinTable = seatIndex % (seatColumns * 2)
+    const rowCapacity = Math.min(seatColumns * 2, project.sessions.length - tableIndex * seatColumns * 2)
+    const rowColumns = Math.ceil(rowCapacity / 2)
+    const back = seatWithinTable % 2 === 0
+    const column = Math.floor(seatWithinTable / 2)
+    const seatX = (column - (rowColumns - 1) / 2) * 1.31
+    const seatZ = (tableIndex - (tableRows - 1) / 2) * 3.45 + 0.17 + (back ? -1.76 : 1.78)
     const rig = addPerson(group, session.id, seatX, seatZ, !back, project.source)
     rigs.set(session.id, rig)
     seats.set(session.id, new THREE.Vector3(x + seatX, 3 - (seatIndex % 3) * 0.65, z + seatZ))
@@ -304,7 +323,19 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
     box(group, 1.1, 0.06, 0.71, materials.outpostBanner, 0, 1.31, 0.18)
     box(group, 0.78, 0.027, 0.07, materials.riverLight, 0, 1.35, 0.12)
   }
-  return { point: new THREE.Vector3(x, 6.45, z - depth / 2), width }
+  if (commons) {
+    // A taller civic crest makes each gathering hall readable from the world view.
+    box(group, 2.8, 0.28, 1.55, timber, 0, 5.63, -depth / 2 + 1.5)
+    box(group, 2.15, 1.4, 1.3, wallShade, 0, 6.46, -depth / 2 + 1.5)
+    box(group, 2.55, 0.28, 1.7, roof, 0, 7.3, -depth / 2 + 1.5)
+    box(group, 0.7, 0.76, 0.12, codex ? materials.outpostAccent : materials.lamp, 0, 6.52, -depth / 2 + 0.78).castShadow = false
+    for (const side of [-1, 1]) {
+      box(group, 0.27, 2.7, 0.3, timber, side * (width / 2 - 2.75), 2.35, depth / 2 - 0.22)
+      box(group, 0.74, 0.88, 0.14, codex ? materials.outpostBanner : materials.cloth[1], side * (width / 2 - 2.75), 2.75, depth / 2 - 0.03)
+    }
+    box(group, 2.7, 0.25, 0.74, stone, 0, 0.25, depth / 2 + 1.16)
+  }
+  return { point: new THREE.Vector3(x, commons ? 8.1 : 6.45, z - depth / 2), width }
 }
 
 function addDarkTree(parent: THREE.Object3D, x: number, z: number, size = 1): void {
@@ -420,41 +451,56 @@ function addBrazier(scene: THREE.Scene, x: number, z: number): void {
 }
 
 function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, buildings: Map<string, Place>): { size: number } {
-  const maxWidth = Math.max(9.4, ...projects.map((project) => Math.max(9.4, Math.ceil(project.sessions.length / 2) * 1.34 + 3.5)))
-  const claudeProjects = projects.filter((project) => project.source !== 'codex')
-  const codexProjects = projects.filter((project) => project.source === 'codex')
+  const maxWidth = Math.max(9.4, ...projects.map((project) => buildingMetrics(project).width))
+  const claudeProjects = projects.filter((project) => project.source !== 'codex' && project.kind !== 'Commons')
+  const codexProjects = projects.filter((project) => project.source === 'codex' && project.kind !== 'Commons')
   const maxColumns = Math.max(1, Math.ceil(Math.max(claudeProjects.length, codexProjects.length) / 4))
-  const size = Math.max(68, 68 + (maxColumns - 1) * (maxWidth + 7) * 2)
+  const size = 88 + (maxColumns - 1) * (maxWidth + 7) * 2
   box(scene, size, 0.7, size, materials.ground, 0, -0.42, 0)
   box(scene, size / 2 - 3.9, 0.045, size, materials.outpostGround, size / 4 + 1.95, -0.025, 0)
   addRiver(scene, size)
   addBridge(scene)
-  const districtX = 17.5
-  if (claudeProjects.length) {
-    addWell(scene, -districtX, 0)
+  const districtX = 19.5
+  if (projects.some((project) => project.source === 'claude')) {
+    addWell(scene, -10.8, 0)
     addPath(scene, -districtX + 2.2, 0, -5.4, 0, false)
-    for (const z of [-4.2, 4.2]) addLamp(scene, -districtX + 4.1, z)
+    for (const z of [-4.2, 4.2]) addLamp(scene, -10.6, z)
   }
-  if (codexProjects.length) {
-    addWatchPost(scene, districtX, 0)
+  if (projects.some((project) => project.source === 'codex')) {
+    addWatchPost(scene, 10.8, 0)
     addPath(scene, 5.4, 0, districtX - 2.8, 0, true)
-    addBrazier(scene, districtX - 4.4, -3.7)
-    addBrazier(scene, districtX - 4.4, 3.7)
+    addBrazier(scene, 11.8, -4.3)
+    addBrazier(scene, 11.8, 4.3)
     for (const z of [-4.5, 4.5]) {
-      box(scene, 0.37, 1.3, 0.37, materials.outpostStoneDark, districtX - 5, 0.7, z)
-      box(scene, 0.56, 0.38, 0.55, materials.outpostAccent, districtX - 5, 1.5, z)
+      box(scene, 0.37, 1.3, 0.37, materials.outpostStoneDark, 13, 0.7, z)
+      box(scene, 0.56, 0.38, 0.55, materials.outpostAccent, 13, 1.5, z)
     }
   }
-  const positions: Array<[number, number]> = []
+  const positions: Array<[number, number, number]> = []
   for (const [source, districtProjects] of [['claude', claudeProjects], ['codex', codexProjects]] as const) {
     const codex = source === 'codex'
     const side = codex ? 1 : -1
+    const hall = projects.find((project) => project.source === source && project.kind === 'Commons')
+    if (hall) {
+      const hallX = side * districtX
+      const place = addBuilding(scene, hall, -1, hallX, 0, seats, rigs)
+      buildings.set(hall.id, place)
+      positions.push([hallX, 0, buildingMetrics(hall).depth / 2 + 2.4])
+      addPath(scene, side * (districtX - 4), 0, hallX, 0, codex)
+      if (codex) {
+        addOutpostBanner(scene, hallX - place.width / 2 - 1.5, 5)
+        addBrazier(scene, hallX + place.width / 2 + 1.8, 4.2)
+      } else {
+        addLamp(scene, hallX + place.width / 2 + 1.9, 4.6)
+        addTree(scene, hallX - place.width / 2 - 3.3, -3.5, 0.83)
+      }
+    }
     districtProjects.forEach((project, index) => {
       const column = Math.floor(index / 4)
       const row = index % 4
-      const z = row < 2 ? (row === 0 ? -10.4 : 10.4) : (row === 2 ? -25 : 25)
+      const z = row < 2 ? (row === 0 ? -19 : 19) : (row === 2 ? -35 : 35)
       const x = side * (districtX + column * (maxWidth + 7))
-      positions.push([x, z])
+      positions.push([x, z, 6])
       addPath(scene, side * districtX, z < 0 ? -2.4 : 2.4, x, z < 0 ? z + 5 : z - 5, codex)
       const place = addBuilding(scene, project, index, x, z, seats, rigs)
       buildings.set(project.id, place)
@@ -477,7 +523,7 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
     const x = (seeded(index * 2) - 0.5) * (size - 4)
     const z = (seeded(index * 2 + 1) - 0.5) * (size - 4)
     if (Math.abs(x) < 5.0 || (Math.abs(x + districtX) < 5 && Math.abs(z) < 5) || (Math.abs(x - districtX) < 5 && Math.abs(z) < 5)) continue
-    if (positions.some(([bx, bz]) => Math.abs(x - bx) < maxWidth / 2 + 2.4 && Math.abs(z - bz) < 6)) continue
+    if (positions.some(([bx, bz, clearanceZ]) => Math.abs(x - bx) < maxWidth / 2 + 2.4 && Math.abs(z - bz) < clearanceZ)) continue
     if (x < 0) {
       if (seeded(index + 333) > 0.94) addTree(scene, x, z, 0.53 + seeded(index + 101) * 0.28)
       else {
@@ -495,11 +541,13 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
 
 const cameraOffset = new THREE.Vector3(29, 34, 43)
 
-const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, onSelectSession, onFocusProject }, ref) {
+const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, focusedId, onSelectSession, onFocusProject }, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<Runtime | null>(null)
   const selectedRef = useRef(selectedId)
   selectedRef.current = selectedId
+  const focusedRef = useRef(focusedId)
+  focusedRef.current = focusedId
   const callbacksRef = useRef({ onSelectSession, onFocusProject })
   callbacksRef.current = { onSelectSession, onFocusProject }
   const [unavailable, setUnavailable] = useState(false)
@@ -541,6 +589,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     const buildings = new Map<string, Place>()
     const seats = new Map<string, THREE.Vector3>()
     const rigs = new Map<string, PersonRig>()
+    const sessionProjects = new Map(projects.flatMap((project) => project.sessions.map((session): [string, string] => [session.id, project.id])))
     const { size } = addVillage(scene, projects, seats, rigs, buildings)
     const target = new THREE.Vector3()
     const runtime: Runtime = { camera, target, desiredTarget: target.clone(), desiredZoom: 1, overviewZoom: 1, buildings, seats, rigs }
@@ -649,7 +698,8 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
         if (kind === 'project') label.classList.toggle('is-overview', camera.zoom < runtime.overviewZoom * 1.45)
         labelPoint.copy(anchor).project(camera)
         const onScreen = labelPoint.z < 1 && labelPoint.x > -1.12 && labelPoint.x < 1.12 && labelPoint.y > -1.12 && labelPoint.y < 1.12
-        const showSession = kind !== 'session' || camera.zoom > runtime.overviewZoom * 1.55 || id === selectedRef.current
+        const showSession = kind !== 'session' || ((camera.zoom > runtime.overviewZoom * 1.55 || id === selectedRef.current)
+          && (!focusedRef.current || sessionProjects.get(id) === focusedRef.current || id === selectedRef.current))
         label.style.visibility = onScreen && showSession ? 'visible' : 'hidden'
         if (onScreen && showSession) visibleLabels.push({ label, kind: kind || '', x: (labelPoint.x + 1) * host.clientWidth / 2, y: (1 - labelPoint.y) * host.clientHeight / 2 })
       }
@@ -698,7 +748,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
   return <div className="world-host" ref={hostRef} aria-label="Interactive village map">
     {unavailable && <div className="world-unavailable">This browser cannot start the 3D village. Try enabling WebGL.</div>}
     <div className="world-label-layer">
-      {projects.map((project) => <button className={`building-label ${project.source === 'codex' ? 'codex' : ''}`} key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => callbacksRef.current.onFocusProject(project.id)} type="button">
+      {projects.map((project) => <button className={`building-label ${project.source === 'codex' ? 'codex' : ''} ${project.kind === 'Commons' ? 'commons' : ''}`} key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => callbacksRef.current.onFocusProject(project.id)} type="button">
         <span className="building-label-kind">{project.source} · {project.kind}</span><strong>{project.name}</strong><small>{project.sessions.length} {project.sessions.length === 1 ? 'session' : 'sessions'}</small>
       </button>)}
       {projects.flatMap((project) => project.sessions.map((session) => <button className={`session-label ${project.source === 'codex' ? 'codex' : ''} ${selectedId === session.id ? 'is-selected' : ''}`} key={session.id} data-world-label="session" data-world-id={session.id} onClick={() => callbacksRef.current.onSelectSession(session.id)} type="button" title={session.name}>

@@ -69,7 +69,7 @@ export default function App() {
   }
 
   return <main className="app-shell">
-    {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId} onSelectSession={setSelectedId} onFocusProject={focusProject} />}
+    {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId} focusedId={focusedId} onSelectSession={setSelectedId} onFocusProject={focusProject} />}
     {!snapshot && <div className="loading-world"><div className="loading-mark">✦</div><p>{error || 'Preparing the village…'}</p><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
     <header className="app-header">
       <div className="brand-mark" aria-hidden="true"><span className="brand-roof" /><span className="brand-home" /><span className="brand-door" /></div>
@@ -82,7 +82,7 @@ export default function App() {
     </div>
     {showGuide && <div className="guide-popover" role="dialog" aria-label="How to explore">
       <div className="popover-heading"><strong>Explore the village</strong><button type="button" aria-label="Close guide" onClick={() => setShowGuide(false)}>×</button></div>
-      <p>Drag to pan. Scroll or pinch to zoom. Cross the river between the Claude village and Codex outpost. Select a building name to move closer, then select a seated character for session details.</p>
+      <p>Drag to pan. Scroll or pinch to zoom. Cross the river between the Claude village and Codex outpost. Each bank has a hall for sessions without a project. Select a building name to move closer, then select a seated character for session details.</p>
       <p className="guide-shortcuts">Keyboard: <kbd>0</kbd> fit all · <kbd>+</kbd> / <kbd>−</kbd> zoom · <kbd>Esc</kbd> close</p>
     </div>}
     <div className="world-intro"><span className="intro-line" />Two banks. One world. Every session has a seat.</div>
