@@ -16,6 +16,9 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .building-label-kind { display: block; margin-bottom: 2px; color: #997255; font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
 .building-label strong { display: block; overflow: hidden; font-family: 'Fraunces', Georgia, serif; font-size: 16px; font-weight: 600; text-overflow: ellipsis; }
 .building-label small { display: block; margin-top: 2px; color: #8e876f; font-size: 10px; }
+.building-label.is-overview { min-width: 0; max-width: 155px; padding: 6px 10px; }
+.building-label.is-overview .building-label-kind, .building-label.is-overview small { display: none; }
+.building-label.is-overview strong { font-size: 12px; }
 .building-label.codex { border-color: #34444a; background: #3e4b4ded; box-shadow: 0 3px 0 #263337, 0 7px 15px #252f304a; color: #f5ecdf; }
 .building-label.codex::after { border-color: #34444a; background: #3e4b4d; }
 .building-label.codex:hover, .building-label.codex:focus-visible { background: #526164; }
@@ -37,8 +40,11 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .brand-eyebrow { display: block; margin-bottom: 2px; color: #8e8067; font-size: 9px; font-weight: 700; letter-spacing: .16em; }
 .brand-copy h1 { margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 27px; font-weight: 600; line-height: 1; letter-spacing: -.03em; }
 .top-actions { top: 27px; right: 31px; display: flex; align-items: center; gap: 9px; }
-.source-badge, .round-action { border: 1px solid #cbbf9f; background: #fbf6e8ed; box-shadow: 0 5px 20px #43452f25; backdrop-filter: blur(12px); }
+.source-badge, .round-action, .period-control { border: 1px solid #cbbf9f; background: #fbf6e8ed; box-shadow: 0 5px 20px #43452f25; backdrop-filter: blur(12px); }
 .source-badge { display: flex; align-items: center; gap: 9px; min-height: 35px; padding: 0 13px; border-radius: 22px; color: #635d4c; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.period-control { display: flex; align-items: center; gap: 6px; min-height: 35px; padding: 0 10px; border-radius: 22px; color: #827763; font-size: 10px; font-weight: 700; }
+.period-control select { border: 0; background: transparent; color: #514b3f; font: inherit; cursor: pointer; }
+.period-control select:focus-visible { outline: 2px solid #9a633f; outline-offset: 2px; }
 .source-dot { width: 7px; height: 7px; border-radius: 50%; background: #80a87a; box-shadow: 0 0 0 3px #80a87a36; }
 .round-action { width: 35px; height: 35px; border-radius: 50%; color: #5d5a4a; font-family: Georgia, serif; font-size: 19px; }
 .round-action:hover, .map-controls button:hover { background: #fffaf0; }
@@ -109,6 +115,8 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
   .brand-copy h1 { font-size: 20px; }
   .top-actions { top: 15px; right: 14px; }
   .source-badge { padding: 0 8px; font-size: 9px; }
+  .period-control { padding: 0 5px; }
+  .period-control span { display: none; }
   .world-intro { display: none; }
   .world-footer-left { bottom: 15px; left: 14px; }
   .map-caption { display: none; }

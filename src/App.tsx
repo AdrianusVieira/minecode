@@ -21,12 +21,13 @@ export default function App() {
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [showGuide, setShowGuide] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [days, setDays] = useState(2)
 
   useEffect(() => {
     let alive = true
     const load = async () => {
       try {
-        const response = await fetch('/api/world', { cache: 'no-store' })
+        const response = await fetch(`/api/world?days=${days}`, { cache: 'no-store' })
         if (!response.ok) throw new Error(`World data request failed (${response.status})`)
         const next = await response.json() as WorldSnapshot
         if (alive) { setSnapshot(next); setError(null) }
@@ -37,7 +38,7 @@ export default function App() {
     void load()
     const timer = window.setInterval(() => void load(), 15_000)
     return () => { alive = false; window.clearInterval(timer) }
-  }, [])
+  }, [days])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -62,7 +63,7 @@ export default function App() {
   const fit = () => { setFocusedId(null); scene.current?.fit() }
   const copyId = async () => {
     if (!selected) return
-    await navigator.clipboard.writeText(selected.session.id)
+    await navigator.clipboard.writeText(selected.session.externalId || selected.session.id)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 2000)
   }
@@ -75,7 +76,8 @@ export default function App() {
       <div className="brand-copy"><span className="brand-eyebrow">A WORLD FOR WORK IN PROGRESS</span><h1>The Village</h1></div>
     </header>
     <div className="top-actions">
-      {snapshot && <span className="source-badge"><span className="source-dot" />{snapshot.source === 'sample' ? 'Sample village' : 'Local data'}</span>}
+      {snapshot && <span className="source-badge" title={snapshot.notices?.join(' ')}><span className="source-dot" />{snapshot.source === 'sample' ? 'Sample village' : snapshot.source === 'telemetry' ? 'Live telemetry' : 'Local file'}{snapshot.notices?.length ? ' ·' : ''}</span>}
+      {snapshot?.source === 'telemetry' && <label className="period-control"><span>Show</span><select aria-label="Session time range" value={days} onChange={(event) => { setDays(Number(event.target.value)); setSelectedId(null); setFocusedId(null) }}><option value={1}>24h</option><option value={2}>48h</option><option value={7}>7d</option><option value={30}>30d</option></select></label>}
       <button type="button" className="round-action" aria-label="How to explore" title="How to explore" onClick={() => setShowGuide((value) => !value)}>?</button>
     </div>
     {showGuide && <div className="guide-popover" role="dialog" aria-label="How to explore">
@@ -100,8 +102,8 @@ export default function App() {
       <p className="panel-kicker">SEATED AT {selected.project.name.toUpperCase()}</p>
       <h2>{selected.session.name}</h2>
       <div className="panel-activity"><span className={`activity-dot ${selected.session.status}`} /><div><small>LATEST ACTIVITY</small><strong>{selected.session.activity}</strong></div></div>
-      <dl className="panel-details"><div><dt>Last observed</dt><dd>{snapshot?.source === 'sample' ? 'Sample activity' : timeAgo(selected.session.updatedAt)}</dd></div><div><dt>Agent</dt><dd>{selected.project.source === 'codex' ? 'Codex' : 'Claude Code'}</dd></div><div><dt>Data</dt><dd>{snapshot?.source === 'sample' ? 'Illustrative session' : 'Local session snapshot'}</dd></div></dl>
-      {snapshot?.source === 'file' && <button type="button" className="copy-button" onClick={() => void copyId()}>{copied ? 'Copied session ID' : 'Copy session ID'} <span aria-hidden="true">↗</span></button>}
+      <dl className="panel-details"><div><dt>Last observed</dt><dd>{snapshot?.source === 'sample' ? 'Sample activity' : timeAgo(selected.session.updatedAt)}</dd></div><div><dt>Agent</dt><dd>{selected.project.source === 'codex' ? 'Codex' : 'Claude Code'}</dd></div><div><dt>Data</dt><dd>{snapshot?.source === 'sample' ? 'Illustrative session' : snapshot?.source === 'telemetry' ? 'Local telemetry' : 'Local session snapshot'}</dd></div></dl>
+      {snapshot?.source !== 'sample' && <button type="button" className="copy-button" onClick={() => void copyId()}>{copied ? 'Copied session ID' : 'Copy session ID'} <span aria-hidden="true">↗</span></button>}
       <p className="panel-note">Activity is the latest supplied signal. It does not confirm that a session is currently running.</p>
     </aside>}
     {error && snapshot && <div className="data-warning" role="status">Showing the last village snapshot. {error}</div>}

@@ -646,6 +646,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
         const id = label.dataset.worldId || ''
         const anchor = kind === 'project' ? buildings.get(id)?.point : seats.get(id)
         if (!anchor) continue
+        if (kind === 'project') label.classList.toggle('is-overview', camera.zoom < runtime.overviewZoom * 1.45)
         labelPoint.copy(anchor).project(camera)
         const onScreen = labelPoint.z < 1 && labelPoint.x > -1.12 && labelPoint.x < 1.12 && labelPoint.y > -1.12 && labelPoint.y < 1.12
         const showSession = kind !== 'session' || camera.zoom > runtime.overviewZoom * 1.55 || id === selectedRef.current
@@ -657,19 +658,22 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       for (const item of visibleLabels.sort((a, b) => priority(a.kind) - priority(b.kind))) {
         const width = item.label.offsetWidth
         const height = item.label.offsetHeight
-        const offsets = item.kind === 'session' ? [0, -25, 25, -50, 50, -75, 75] : [0]
-        let top = item.y
-        for (const offset of offsets) {
-          const candidate = item.y + offset
-          const bounds = { left: item.x - width / 2 - 3, right: item.x + width / 2 + 3, top: candidate - height - 3, bottom: candidate + 3 }
-          if (candidate > height + 6 && candidate < host.clientHeight - 6 && !occupied.some((other) => bounds.left < other.right && bounds.right > other.left && bounds.top < other.bottom && bounds.bottom > other.top)) {
-            top = candidate
-            break
-          }
+        const offsets = item.kind === 'session'
+          ? [[0, 0], [0, -25], [0, 25], [-35, 0], [35, 0]]
+          : [[0, 0], [0, -38], [0, 38], [-60, 0], [60, 0], [-75, -43], [75, -43], [-75, 43], [75, 43], [0, -80], [0, 80], [-135, 0], [135, 0], [-130, -80], [130, -80], [-130, 80], [130, 80], [-200, 0], [200, 0]]
+        let placed = false
+        for (const [dx, dy] of offsets) {
+          const x = item.x + dx, y = item.y + dy
+          const bounds = { left: x - width / 2 - 3, right: x + width / 2 + 3, top: y - height - 3, bottom: y + 3 }
+          if (bounds.left < 5 || bounds.right > host.clientWidth - 5 || bounds.top < 5 || bounds.bottom > host.clientHeight - 5) continue
+          if (occupied.some((other) => bounds.left < other.right && bounds.right > other.left && bounds.top < other.bottom && bounds.bottom > other.top)) continue
+          item.label.style.left = `${x}px`
+          item.label.style.top = `${y}px`
+          occupied.push(bounds)
+          placed = true
+          break
         }
-        item.label.style.left = `${item.x}px`
-        item.label.style.top = `${top}px`
-        occupied.push({ left: item.x - width / 2 - 3, right: item.x + width / 2 + 3, top: top - height - 3, bottom: top + 3 })
+        if (!placed) item.label.style.visibility = 'hidden'
       }
       renderer.render(scene, camera)
     }
