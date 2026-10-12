@@ -1,37 +1,48 @@
 # The Village
 
-A continuous, navigable world for projects and sessions. Claude Code projects occupy a warm village bank; Codex projects occupy an outpost across the river. Every project gets an open-front building, while sessions without a project gather in the Village Hall or Outpost Hall. Every session gets a seat at a shared worktable. The Village reads session summaries from the two local telemetry dashboards when they are available.
+A navigable, blocky world for Claude Code and Codex sessions. Claude's workshops and Codex's outposts face each other across a river. Sessions sit at shared worktables; sessions without a project gather in the Village Hall or Outpost Hall.
 
-## Run locally
+![The Village in sample mode, showing both districts and their communal halls](docs/village-preview.jpg)
+
+The world fills the browser viewport. Drag to pan, scroll or pinch to zoom, select a building name to focus it, and select a seated character to inspect its session. The map controls also zoom and fit the whole village. Keyboard shortcuts: `0` to fit all, `+` and `-` to zoom, and `Escape` to close the details panel.
+
+## Try it
 
 Requires Node.js 20.19 or newer.
 
 ```sh
 npm install
-npm run dev
+VILLAGE_SOURCE=sample npm run dev
 ```
 
-Open <http://127.0.0.1:5177>. The development command runs Vite and the local data server together. For a built version, run `npm start` and open <http://127.0.0.1:41321>. Everything runs from this repository. Set `VILLAGE_PORT` to change the local API port.
+Open <http://127.0.0.1:5177>. Sample mode uses fictional session data and needs no telemetry dashboards. The development command starts Vite and The Village's local API together. For a built version, run `npm start` and open <http://127.0.0.1:41321>.
 
-Drag to pan, scroll or pinch to zoom, click a building name to focus it, and click a seated character or their name for session details. The map buttons also zoom and fit all buildings. Keyboard shortcuts: `0` fits all, `+` and `-` zoom, and `Escape` closes the details panel.
+## Use live sessions
 
-## Connect the local telemetry dashboards
+Keep your Claude Code and Codex telemetry dashboards running, then start The Village with `npm run dev` (without `VILLAGE_SOURCE=sample`). It reads their existing session APIs over loopback:
 
-Keep the Claude Code and Codex telemetry dashboards running as usual. The Village makes read-only HTTP requests to their session APIs, by default at `127.0.0.1:41300` and `127.0.0.1:18765`. The existing OTLP receivers remain on ports `4318` and `18766`; The Village does not listen on those ports or change either agent's telemetry configuration. The Village itself listens on port `41321` (and Vite on `5177` during development).
+| Source | Read-only session API | Existing telemetry receiver |
+| --- | --- | --- |
+| Claude Code | `127.0.0.1:41300` | `127.0.0.1:4318` |
+| Codex | `127.0.0.1:18765` | `127.0.0.1:18766` |
 
-The world shows sessions observed in the last 48 hours by default. Choose 24 hours, 7 days, or 30 days from the small control at the top. The browser refreshes data every 15 seconds. If only one dashboard is available, that source still appears. If neither is available, automatic mode shows sample sessions. Set `VILLAGE_SOURCE=telemetry` to require live data or `VILLAGE_SOURCE=sample` to force the illustrative world. Override upstream ports with `CLAUDE_DASHBOARD_PORT` and `CODEX_DASHBOARD_PORT` if needed.
+The Village listens separately on `127.0.0.1:41321`; Vite uses `127.0.0.1:5177` during development. It does not bind to the dashboards' ports or change either agent's telemetry configuration. Override ports with `CLAUDE_DASHBOARD_PORT`, `CODEX_DASHBOARD_PORT`, or `VILLAGE_PORT` as needed.
 
-Claude's dashboard supplies project and session titles. Codex's telemetry API supplies session IDs and activity; The Village uses local Codex thread metadata when available to recover names and project folders. Claude sessions with no known project gather in **Village Hall**. Codex's dated folders under `Documents/Codex` belong to projectless chats; they and Codex sessions without a matching folder gather in **Outpost Hall**. Activity describes the latest observed signal and does not prove a session is still running. The Village only sends names, IDs, timestamps, and short generic activity labels to its browser. It does not return prompts, transcripts, or tool contents.
+The default view shows sessions observed in the last 48 hours. The time control offers 24 hours, 7 days, and 30 days, and the browser refreshes every 15 seconds. If one dashboard is unavailable, the other still appears. If both are unavailable, automatic mode shows the fictional sample world. Set `VILLAGE_SOURCE=telemetry` to require live data.
 
-## Supply a standalone session file
+Claude's API provides project and session titles. Codex's API provides session IDs and activity; The Village uses local Codex metadata when available to recover titles and project folders. Projectless Claude sessions gather in **Village Hall**. Codex's dated chat folders and sessions without project metadata gather in **Outpost Hall**. Recent activity is an observed signal, not proof that a session is still running.
 
-Set `VILLAGE_DATA_FILE` to an absolute JSON file path before starting the server. The server reads that file for each request to `GET /api/world`, validates the public fields, and the browser refreshes the snapshot every 15 seconds. A collector can replace the file atomically without restarting the app.
+### Local data boundary
+
+The sample world and preview image contain fictional sessions; no live telemetry snapshots are tracked. At runtime, The Village's local API sends only names, IDs, timestamps, and short generic activity labels to the browser; it does not return prompts, transcripts, tool inputs, or credentials. Names and IDs from your own sessions may still be private. Keep the live server and dashboard APIs on loopback, and use sample mode for screenshots or public demos.
+
+## Use a standalone data file
+
+The Village can also read a JSON snapshot from an absolute path. `VILLAGE_DATA_FILE` takes precedence over automatic telemetry. The server validates its public fields on each `GET /api/world` request, so a collector can replace the file atomically without restarting the app.
 
 ```sh
 VILLAGE_DATA_FILE=/absolute/path/to/world.json npm run dev
 ```
-
-The file format is:
 
 ```json
 {
@@ -45,7 +56,7 @@ The file format is:
         {
           "id": "session-id",
           "name": "Session name",
-          "updatedAt": "2026-10-12T12:00:00Z",
+          "updatedAt": "2026-01-01T12:00:00Z",
           "activity": "Latest observed activity",
           "status": "recent"
         }
@@ -55,15 +66,13 @@ The file format is:
 }
 ```
 
-`source` is `claude` or `codex` and places the project on its corresponding bank. Omit it in an older file to default to `claude`. `updatedAt` may be `null`. `status` is `recent`, `quiet`, or `unknown`; it describes a supplied signal, not whether a process is running. The `id` fields must be unique. The endpoint deliberately accepts only names, times, and short activity descriptions. Transcripts, prompts, tool inputs, and credentials are outside this UI contract.
+`source` is `claude` or `codex` and places the building on its corresponding bank; omitting it defaults to `claude`. Use `kind: "Commons"` for a communal hall. `updatedAt` may be `null`. `status` is `recent`, `quiet`, or `unknown`; it describes a supplied signal, not whether a process is running. Project and session IDs must be unique.
 
-The file source takes precedence over automatic telemetry when `VILLAGE_DATA_FILE` is set. The world renderer and inspector consume the same `WorldSnapshot` for either source. Opening or continuing an agent conversation is a separate integration. Cowork is not connected.
-
-## Checks
+## Development
 
 ```sh
 npm test
 npm run build
 ```
 
-The initial camera and seated character concepts were adapted from the earlier Office prototype. The village layout, architecture, styling, data boundary, and interface are new to this repository.
+Opening or continuing an agent conversation from the world is future work. Cowork is not connected. The initial camera and seated character concepts were adapted from an earlier Office prototype; the village layout, architecture, styling, data boundary, and interface live in this standalone repository.

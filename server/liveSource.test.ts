@@ -43,13 +43,13 @@ test('gathers Codex dated chat folders and unmapped sessions in one hall', () =>
   const result = mapSessions('codex', [
     { id: 'one', lastSeen: now }, { id: 'two', lastSeen: now }, { id: 'three', lastSeen: now },
   ], 1, now, new Map([
-    ['one', { cwd: '/Users/example/Documents/Codex/2026-10-09/c', title: 'Set up Postman requests' }],
-    ['two', { cwd: '/Users/example/Documents/Codex/2026-10-10/l', title: 'Find Alexa options' }],
+    ['one', { cwd: '/Users/example/Documents/Codex/2026-10-09/c', title: 'Draft a note' }],
+    ['two', { cwd: '/Users/example/Documents/Codex/2026-10-10/l', title: 'Review a sketch' }],
   ]))
   assert.equal(result.projects.length, 1)
   assert.equal(result.projects[0].name, 'Outpost Hall')
   assert.equal(result.projects[0].kind, 'Commons')
-  assert.deepEqual(result.projects[0].sessions.map((session) => session.name), ['Set up Postman requests', 'Find Alexa options', 'Codex session three'])
+  assert.deepEqual(result.projects[0].sessions.map((session) => session.name), ['Draft a note', 'Review a sketch', 'Codex session three'])
 })
 
 test('gathers Claude sessions without a project in Village Hall', () => {
