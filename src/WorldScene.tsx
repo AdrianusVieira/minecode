@@ -13,23 +13,25 @@ type Runtime = {
 }
 
 const colors = {
-  ground: 0x91a77d, grassLight: 0xa9b98d, grassDark: 0x7e9b72,
-  stone: 0xcec6ac, stoneEdge: 0xa9a18a, path: 0xd9cbaa,
-  wall: 0xe4d5ae, wallShade: 0xc8b78e, timber: 0x755441,
-  wood: 0xa7734c, woodLight: 0xbe8c60, dark: 0x443b34,
+  ground: 0x749361, grassLight: 0x91ae70, grassDark: 0x5f7f52,
+  stone: 0xb6ad91, stoneEdge: 0x857c68, path: 0xa69578,
+  wall: 0xd7c59b, wallShade: 0xb9a67f, timber: 0x674833,
+  wood: 0x8e613d, woodLight: 0xad7c4c, dark: 0x382e29,
 }
-const roofColors = [0x9e604e, 0x597e70, 0xb1854f, 0x7c708b, 0x667a65, 0xa3715a]
-const clothColors = [0x678f85, 0xb07962, 0x7f88a5, 0xb59665, 0x82725e, 0x8b9f67]
+const roofColors = [0x8d5140, 0x756b4b, 0x9b6640, 0x636b57, 0x766342, 0x945f49]
+const clothColors = [0x56756c, 0x985c49, 0x697791, 0xa58b53, 0x746151, 0x6f8651]
 const skinColors = [0xf0c99d, 0xc78f6a, 0x996348, 0x704536]
 const hairColors = [0x392f2a, 0x694c35, 0x9c7250, 0x2c3030]
 const mat = (color: number, extras: THREE.MeshLambertMaterialParameters = {}) => new THREE.MeshLambertMaterial({ color, ...extras })
 const materials = {
   ground: mat(colors.ground), grassLight: mat(colors.grassLight), grassDark: mat(colors.grassDark),
   stone: mat(colors.stone), stoneEdge: mat(colors.stoneEdge), path: mat(colors.path),
+  cobble: [mat(0x9d9279), mat(0xb4aa8c), mat(0x827e6b), mat(0xc2b699)],
+  soil: mat(0x6f5238), soilLight: mat(0x896849), crop: mat(0x77974b), cropLight: mat(0xa6aa53),
   wall: mat(colors.wall), wallShade: mat(colors.wallShade), timber: mat(colors.timber),
   wood: mat(colors.wood), woodLight: mat(colors.woodLight), dark: mat(colors.dark),
-  glass: mat(0xa6c8b3, { emissive: 0x779b81, emissiveIntensity: 0.12 }),
-  leaf: mat(0x62835c), leafLight: mat(0x86a46d), trunk: mat(0x6c533d),
+  glass: mat(0x8dada0, { emissive: 0x779b81, emissiveIntensity: 0.08 }),
+  leaf: mat(0x4f7549), leafLight: mat(0x779451), trunk: mat(0x67482f),
   flower: [mat(0xe8c477), mat(0xf3e0cb), mat(0xc98f80)],
   roof: roofColors.map((color) => mat(color)),
   cloth: clothColors.map((color) => mat(color)),
@@ -60,10 +62,11 @@ function addTree(parent: THREE.Object3D, x: number, z: number, size = 1): void {
   tree.position.set(x, 0, z)
   tree.scale.setScalar(size)
   parent.add(tree)
-  box(tree, 0.48, 1.75, 0.48, materials.trunk, 0, 0.88, 0)
-  box(tree, 1.8, 1.05, 1.65, materials.leaf, 0, 2.14, 0)
-  box(tree, 1.36, 0.84, 1.4, materials.leafLight, -0.14, 2.83, -0.08)
-  box(tree, 0.95, 0.55, 1.05, materials.leaf, 0.16, 3.36, 0.05)
+  box(tree, 0.52, 2.15, 0.52, materials.trunk, 0, 1.08, 0)
+  box(tree, 1.72, 0.72, 1.72, materials.leaf, 0, 2.15, 0)
+  box(tree, 2.35, 0.82, 2.15, materials.leafLight, 0, 2.82, 0)
+  box(tree, 1.75, 0.7, 1.75, materials.leaf, 0, 3.51, 0)
+  box(tree, 1.02, 0.52, 1.04, materials.leafLight, 0, 4.11, 0)
 }
 
 function addLamp(parent: THREE.Object3D, x: number, z: number): void {
@@ -72,6 +75,26 @@ function addLamp(parent: THREE.Object3D, x: number, z: number): void {
   box(parent, 0.62, 0.14, 0.62, materials.dark, x, 2.46, z)
   box(parent, 0.42, 0.4, 0.42, materials.lamp, x, 2.73, z)
   box(parent, 0.72, 0.16, 0.72, materials.dark, x, 3.0, z)
+}
+
+function addGarden(parent: THREE.Object3D, x: number, z: number, seed: number): void {
+  box(parent, 3.25, 0.18, 3.85, materials.wood, x, 0.12, z)
+  box(parent, 2.92, 0.12, 3.52, materials.soil, x, 0.26, z)
+  for (let row = 0; row < 4; row++) {
+    for (let column = 0; column < 3; column++) {
+      const cropX = x - 0.9 + column * 0.9
+      const cropZ = z - 1.3 + row * 0.86
+      box(parent, 0.16, 0.14, 0.16, materials.soilLight, cropX, 0.34, cropZ)
+      const height = 0.34 + ((row + column + seed) % 3) * 0.13
+      box(parent, 0.11, height, 0.11, materials.crop, cropX, 0.39 + height / 2, cropZ)
+      box(parent, 0.29, 0.1, 0.17, materials.cropLight, cropX - 0.12, 0.55 + height * 0.3, cropZ)
+      box(parent, 0.24, 0.1, 0.18, materials.crop, cropX + 0.12, 0.52 + height * 0.3, cropZ)
+    }
+  }
+  for (const side of [-1, 1]) {
+    for (const end of [-1, 1]) box(parent, 0.14, 0.63, 0.14, materials.timber, x + side * 1.6, 0.43, z + end * 1.9)
+    box(parent, 0.1, 0.15, 3.8, materials.woodLight, x + side * 1.6, 0.62, z)
+  }
 }
 
 function addPerson(parent: THREE.Group, id: string, x: number, z: number, faceBack: boolean): PersonRig {
@@ -84,31 +107,46 @@ function addPerson(parent: THREE.Group, id: string, x: number, z: number, faceBa
   person.rotation.y = faceBack ? Math.PI : 0
   person.userData.sessionId = id
   parent.add(person)
-  box(person, 0.67, 0.13, 0.58, materials.wood, 0, 0.52, -0.12)
-  box(person, 0.7, 0.77, 0.12, materials.wood, 0, 0.83, -0.48)
-  for (const leg of [-0.24, 0.24]) box(person, 0.1, 0.45, 0.1, materials.timber, leg, 0.23, -0.13)
+  box(person, 0.75, 0.16, 0.68, materials.wood, 0, 0.52, -0.14)
+  box(person, 0.78, 0.74, 0.15, materials.timber, 0, 0.88, -0.52)
+  for (const leg of [-0.27, 0.27]) box(person, 0.13, 0.47, 0.14, materials.timber, leg, 0.23, -0.14)
   const body = new THREE.Group()
   person.add(body)
-  box(body, 0.6, 0.64, 0.42, cloth, 0, 0.99, -0.04)
-  box(body, 0.36, 0.56, 0.025, materials.wallShade, 0, 0.97, 0.19)
-  box(body, 0.38, 0.11, 0.05, materials.woodLight, 0, 0.7, 0.21)
+  box(body, 0.76, 0.72, 0.56, cloth, 0, 1.01, -0.02)
+  box(body, 0.8, 0.19, 0.62, cloth, 0, 0.65, 0.0)
+  box(body, 0.47, 0.59, 0.025, materials.wallShade, 0, 1.01, 0.27)
+  box(body, 0.52, 0.12, 0.07, materials.timber, 0, 0.75, 0.31)
+  box(body, 0.13, 0.14, 0.08, materials.woodLight, 0, 0.75, 0.35)
   const head = new THREE.Group()
-  head.position.set(0, 1.39, 0)
+  head.position.set(0, 1.42, 0)
   body.add(head)
-  box(head, 0.48, 0.47, 0.45, skin, 0, 0.18, 0)
-  box(head, 0.53, 0.17, 0.49, hair, 0, 0.47, -0.01)
-  if (seed % 3 === 0) box(head, 0.59, 0.055, 0.56, hair, 0, 0.4, 0)
-  if (seed % 4 === 0) box(head, 0.2, 0.09, 0.05, hair, -0.12, 0.39, 0.25)
-  box(head, 0.035, 0.04, 0.02, materials.dark, -0.12, 0.22, 0.234)
-  box(head, 0.035, 0.04, 0.02, materials.dark, 0.12, 0.22, 0.234)
+  box(head, 0.66, 0.61, 0.59, skin, 0, 0.22, 0)
+  box(head, 0.72, 0.14, 0.64, hair, 0, 0.54, -0.01)
+  box(head, 0.68, 0.18, 0.16, hair, 0, 0.43, -0.31)
+  if (seed % 3 === 0) {
+    box(head, 0.82, 0.08, 0.72, materials.woodLight, 0, 0.65, 0)
+    box(head, 0.59, 0.24, 0.57, materials.wood, 0, 0.79, -0.02)
+  } else if (seed % 3 === 1) {
+    box(head, 0.17, 0.42, 0.12, hair, -0.29, 0.3, 0.2)
+    box(head, 0.17, 0.42, 0.12, hair, 0.29, 0.3, 0.2)
+  }
+  // Angular noses, separate brows and varied headwear keep the villagers recognizable but original.
+  box(head, 0.15, 0.24, 0.19, skin, 0, 0.20, 0.38)
+  box(head, 0.13, 0.08, 0.07, skin, 0, 0.09, 0.47)
+  for (const side of [-1, 1]) {
+    box(head, 0.16, 0.055, 0.055, hair, side * 0.19, 0.39, 0.31)
+    box(head, 0.065, 0.07, 0.028, materials.dark, side * 0.19, 0.28, 0.31)
+    box(head, 0.11, 0.045, 0.045, materials.wallShade, side * 0.35, 0.19, 0.04)
+  }
   const leftArm = new THREE.Group()
   const rightArm = new THREE.Group()
-  leftArm.position.set(-0.38, 1.24, 0.02)
-  rightArm.position.set(0.38, 1.24, 0.02)
+  leftArm.position.set(-0.46, 1.28, 0.02)
+  rightArm.position.set(0.46, 1.28, 0.02)
   for (const [arm, side] of [[leftArm, -1], [rightArm, 1]] as const) {
-    box(arm, 0.18, 0.47, 0.2, cloth, 0, -0.21, 0.1)
-    box(arm, 0.17, 0.13, 0.18, skin, 0, -0.49, 0.13)
-    arm.rotation.z = side * 0.12
+    box(arm, 0.23, 0.43, 0.27, cloth, 0, -0.16, 0.05)
+    box(arm, 0.23, 0.15, 0.24, skin, 0, -0.43, 0.17)
+    arm.rotation.z = side * 0.26
+    arm.rotation.x = -0.28
     body.add(arm)
   }
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.43, 0.52, 32), ringMaterial)
@@ -127,28 +165,71 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
   const width = Math.max(9.4, seatColumns * 1.34 + 3.5)
   const depth = 7.5
   const roof = materials.roof[index % materials.roof.length]
-  box(group, width + 0.9, 0.38, depth + 1, materials.stoneEdge, 0, 0.12, 0)
-  box(group, width + 0.45, 0.16, depth + 0.58, materials.stone, 0, 0.39, 0)
-  box(group, width, 3.8, 0.38, materials.wall, 0, 2.34, -depth / 2 + 0.18)
-  box(group, 0.34, 3.25, depth - 0.2, materials.wall, -width / 2, 1.97, 0)
-  box(group, 0.34, 2.05, depth - 0.2, materials.wallShade, width / 2, 1.36, 0)
-  for (const beam of [-width / 2 + 0.34, 0, width / 2 - 0.34]) {
-    box(group, 0.27, 3.85, 0.53, materials.timber, beam, 2.36, -depth / 2 + 0.38)
+  // A front cutaway reveals the communal table; the stepped gable remains a cottage silhouette.
+  box(group, width + 1.1, 0.37, depth + 1.1, materials.stoneEdge, 0, 0.13, 0)
+  box(group, width + 0.5, 0.18, depth + 0.6, materials.wood, 0, 0.4, 0)
+  for (let plank = 0; plank < 7; plank++) {
+    const plankZ = -depth / 2 + 0.55 + plank * 1.03
+    box(group, width - 0.42, 0.025, 0.045, plank % 2 ? materials.timber : materials.woodLight, 0, 0.505, plankZ).castShadow = false
   }
-  box(group, width + 0.6, 0.27, 0.57, materials.timber, 0, 4.28, -depth / 2 + 0.18)
-  box(group, 0.3, 3.35, 0.35, materials.timber, -width / 2 + 0.13, 2.13, depth / 2 - 0.16)
-  box(group, 0.3, 2.16, 0.35, materials.timber, width / 2 - 0.13, 1.52, depth / 2 - 0.16)
-  box(group, width + 0.95, 0.28, 2.75, roof, 0, 4.5, -depth / 2 + 0.55)
-  box(group, width + 0.6, 0.18, 2.55, materials.timber, 0, 4.25, -depth / 2 + 0.65)
-  box(group, 1.2, 0.84, 0.08, materials.timber, -width * 0.23, 2.72, -depth / 2 + 0.46)
-  box(group, 0.94, 0.57, 0.09, materials.glass, -width * 0.23, 2.72, -depth / 2 + 0.52)
-  box(group, 1.2, 0.84, 0.08, materials.timber, width * 0.23, 2.72, -depth / 2 + 0.46)
-  box(group, 0.94, 0.57, 0.09, materials.glass, width * 0.23, 2.72, -depth / 2 + 0.52)
-  box(group, 1.6, 0.35, 0.7, materials.stone, 0, 0.21, depth / 2 + 0.66)
-  box(group, 1.92, 0.22, 0.9, materials.stoneEdge, 0, 0.11, depth / 2 + 1.05)
+  for (let row = 0; row < 2; row++) {
+    for (let column = 0; column < Math.ceil(width / 1.1); column++) {
+      const blockX = -width / 2 + 0.57 + column * 1.08
+      box(group, 1.02, 0.48, 0.43, materials.cobble[(column + row + index) % 4], blockX, 0.79 + row * 0.49, -depth / 2 + 0.1)
+    }
+  }
+  box(group, width, 2.45, 0.35, materials.wall, 0, 2.5, -depth / 2 + 0.19)
+  box(group, width, 0.33, 0.49, materials.timber, 0, 3.84, -depth / 2 + 0.23)
+  for (const side of [-1, 1]) {
+    const edge = side * (width / 2 - 0.12)
+    box(group, 0.42, 3.36, depth - 0.3, materials.wall, edge, 2.16, 0)
+    box(group, 0.55, 1.13, depth - 0.25, materials.stone, edge, 0.99, 0)
+    for (const beamZ of [-depth / 2 + 0.3, 0, depth / 2 - 0.25]) {
+      box(group, 0.28, 3.9, 0.33, materials.timber, edge, 2.39, beamZ)
+    }
+    box(group, 0.29, 0.27, depth - 0.3, materials.timber, edge, 3.6, 0)
+    box(group, 0.68, 0.48, 0.72, materials.cobble[(index + (side + 1)) % 4], edge, 0.5, depth / 2 - 0.25)
+    const frontX = side * (width / 2 - 1.08)
+    box(group, 2.04, 0.78, 0.3, materials.cobble[(index + side + 3) % 4], frontX, 0.9, depth / 2 - 0.13)
+    box(group, 2.04, 1.03, 0.3, materials.wall, frontX, 1.8, depth / 2 - 0.13)
+    box(group, 2.13, 0.19, 0.38, materials.timber, frontX, 2.43, depth / 2 - 0.13)
+  }
+  box(group, width + 0.45, 0.25, 0.43, materials.timber, 0, 4.04, depth / 2 - 0.18)
+  for (const beamX of [-width / 2 + 0.28, 0, width / 2 - 0.28]) {
+    box(group, 0.28, 3.75, 0.46, materials.timber, beamX, 2.26, -depth / 2 + 0.37)
+  }
+  // Roof courses rise in block-sized steps toward the ridge. Only the rear half is roofed.
+  const roofDepth = 3.45
+  const roofZ = -depth / 2 + roofDepth / 2 - 0.3
+  const courseWidth = (width + 1.25) / 8
+  for (let course = 0; course < 4; course++) {
+    const offset = width / 2 + 0.42 - (course + 0.5) * courseWidth
+    const elevation = 4.12 + course * 0.39
+    for (const side of [-1, 1]) {
+      const strip = box(group, courseWidth + 0.06, 0.34, roofDepth, roof, side * offset, elevation, roofZ)
+      strip.castShadow = false
+      for (let tile = 0; tile < 3; tile++) {
+        box(group, courseWidth - 0.12, 0.035, 0.055, materials.timber, side * offset, elevation + 0.19, roofZ - roofDepth / 2 + 0.55 + tile * 1.05).castShadow = false
+      }
+    }
+    box(group, width - course * courseWidth * 2, 0.34, 0.4, materials.wallShade, 0, 4.11 + course * 0.39, -depth / 2 + 0.2)
+  }
+  box(group, 0.52, 0.37, roofDepth + 0.2, materials.timber, 0, 5.54, roofZ)
+  if (index % 2 === 0) {
+    box(group, 0.9, 1.5, 0.91, materials.stoneEdge, width * 0.29, 5.38, -depth / 2 + 0.65)
+    box(group, 1.12, 0.18, 1.12, materials.cobble[index % 4], width * 0.29, 6.15, -depth / 2 + 0.65)
+  }
+  for (const windowX of [-width * 0.26, width * 0.26]) {
+    box(group, 1.22, 0.93, 0.09, materials.timber, windowX, 2.6, -depth / 2 + 0.42)
+    box(group, 0.98, 0.68, 0.1, materials.glass, windowX, 2.6, -depth / 2 + 0.49)
+    box(group, 0.1, 0.73, 0.11, materials.timber, windowX, 2.6, -depth / 2 + 0.55)
+    box(group, 1.42, 0.13, 0.28, materials.woodLight, windowX, 2.08, -depth / 2 + 0.55)
+  }
+  box(group, 2.25, 0.25, 0.64, materials.stone, 0, 0.25, depth / 2 + 0.65)
+  box(group, 1.85, 0.17, 0.73, materials.cobble[index % 4], 0, 0.16, depth / 2 + 1.02)
 
   const tableLength = Math.max(4.15, seatColumns * 1.31 + 0.75)
-  box(group, tableLength, 0.22, 2.18, materials.woodLight, 0, 1.1, 0.17)
+  box(group, tableLength, 0.27, 2.18, materials.woodLight, 0, 1.14, 0.17)
   box(group, tableLength, 0.23, 0.14, materials.wood, 0, 0.93, 1.23)
   for (const xLeg of [-tableLength / 2 + 0.22, tableLength / 2 - 0.22]) {
     for (const zLeg of [-0.68, 0.95]) box(group, 0.18, 0.83, 0.18, materials.timber, xLeg, 0.65, zLeg)
@@ -171,7 +252,13 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
   for (let item = 0; item < 3; item++) box(group, 0.12, 0.4 + item * 0.06, 0.22, materials.cloth[(index + item) % materials.cloth.length], shelfX - 0.2 + item * 0.2, 1.16, -depth / 2 + 0.92)
   box(group, 0.67, 0.51, 0.68, materials.wood, -width / 2 + 0.78, 0.66, depth / 2 - 0.86)
   box(group, 0.77, 0.12, 0.77, roof, -width / 2 + 0.78, 0.94, depth / 2 - 0.86)
-  return { point: new THREE.Vector3(x, 4.85, z - depth / 2), width }
+  for (const side of [-1, 1]) {
+    const postX = side * (width / 2 - 0.92)
+    box(group, 0.21, 0.7, 0.2, materials.timber, postX, 2.86, depth / 2 - 0.28)
+    box(group, 0.45, 0.42, 0.38, materials.lamp, postX, 2.51, depth / 2 - 0.28).castShadow = false
+    box(group, 0.56, 0.1, 0.49, materials.dark, postX, 2.77, depth / 2 - 0.28)
+  }
+  return { point: new THREE.Vector3(x, 6.45, z - depth / 2), width }
 }
 
 function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, buildings: Map<string, Place>): { size: number } {
@@ -182,16 +269,28 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   const outerRadius = ringRadius + (count > 8 ? Math.ceil((count - 8) / 10) * (maxWidth + 8) : 0)
   const size = outerRadius * 2 + maxWidth + 17
   box(scene, size, 0.7, size, materials.ground, 0, -0.42, 0)
-  box(scene, 13, 0.14, 13, materials.stoneEdge, 0, -0.01, 0)
-  box(scene, 11.8, 0.11, 11.8, materials.stone, 0, 0.13, 0)
+  box(scene, 12.8, 0.1, 12.8, materials.path, 0, 0.005, 0)
+  for (let row = -5; row <= 5; row++) {
+    for (let column = -5; column <= 5; column++) {
+      const variant = (row * 7 + column * 11 + 100) % 4
+      const px = column * 1.08 + (row % 2) * 0.14
+      const pz = row * 1.08
+      box(scene, 0.94, 0.08, 0.94, materials.cobble[variant], px, 0.09, pz)
+    }
+  }
   const plaza = new THREE.Group()
   scene.add(plaza)
-  box(plaza, 3.8, 0.4, 3.8, materials.stoneEdge, 0, 0.44, 0)
-  box(plaza, 3.16, 0.26, 3.16, materials.stone, 0, 0.77, 0)
-  box(plaza, 2.3, 0.16, 2.3, materials.glass, 0, 0.95, 0)
-  box(plaza, 0.52, 1.42, 0.52, materials.stoneEdge, 0, 1.6, 0)
-  box(plaza, 1.32, 0.19, 1.32, materials.stone, 0, 2.32, 0)
-  box(plaza, 0.25, 0.65, 0.25, materials.glass, 0, 2.72, 0)
+  box(plaza, 3.24, 0.3, 3.24, materials.stoneEdge, 0, 0.35, 0)
+  box(plaza, 2.55, 0.35, 2.55, materials.cobble[1], 0, 0.68, 0)
+  box(plaza, 1.88, 0.12, 1.88, materials.dark, 0, 0.89, 0)
+  for (const side of [-1, 1]) {
+    box(plaza, 0.22, 2.55, 0.24, materials.timber, side * 1.42, 2.17, 0)
+    box(plaza, 0.18, 0.76, 0.18, materials.timber, side * 1.42, 1.22, 0)
+  }
+  box(plaza, 3.57, 0.27, 1.4, materials.roof[0], 0, 3.55, 0)
+  box(plaza, 2.2, 0.25, 1.58, materials.roof[0], 0, 3.84, 0)
+  box(plaza, 0.65, 0.42, 0.62, materials.wood, 0, 2.0, 0)
+  box(plaza, 0.22, 0.75, 0.22, materials.timber, 0, 2.33, 0)
   for (const [x, z] of [[-5.25, -5.25], [5.25, -5.25], [-5.25, 5.25], [5.25, 5.25]]) addLamp(scene, x, z)
   const positions: Array<[number, number]> = []
   projects.forEach((project, index) => {
@@ -203,16 +302,24 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
     const x = Math.sin(angle) * radius
     const z = Math.cos(angle) * radius
     positions.push([x, z])
-    const steps = Math.max(3, Math.round(radius / 2.1))
+    const steps = Math.max(3, Math.round(radius / 1.12))
     for (let step = 0; step < steps; step++) {
       const t = (step + 0.5) / steps
-      const tile = box(scene, 1.9 + (step % 3) * 0.16, 0.07, 1.58, materials.path, x * t, 0.012, z * t)
+      const wobble = Math.sin(step * 2.38 + index) * 0.21
+      const tileX = x * t + Math.cos(angle) * wobble
+      const tileZ = z * t - Math.sin(angle) * wobble
+      const tile = box(scene, 2.36, 0.07, 1.14, materials.path, tileX, 0.03, tileZ)
       tile.rotation.y = -angle
+      for (const side of [-1, 0, 1]) {
+        const stone = box(scene, 0.58 + ((step + side + 3) % 3) * 0.12, 0.085, 0.68, materials.cobble[(step + side + index + 4) % 4], tileX + Math.cos(angle) * side * 0.65, 0.08, tileZ - Math.sin(angle) * side * 0.65)
+        stone.rotation.y = -angle
+      }
     }
     const place = addBuilding(scene, project, index, x, z, seats, rigs)
     buildings.set(project.id, place)
     addTree(scene, x - place.width / 2 - 1.95, z - 2.35, 0.82)
-    addTree(scene, x + place.width / 2 + 2.1, z + 1.0, 0.68)
+    addTree(scene, x + place.width / 2 + 3.9, z + 1.0, 0.72)
+    addGarden(scene, x + place.width / 2 + 1.75, z - 2.35, index)
     addLamp(scene, x - place.width / 2 - 0.72, z + 4.6)
   })
   const seeded = (index: number) => { const n = Math.sin(index * 72.13 + 3.2) * 43758.5453; return n - Math.floor(n) }
@@ -253,8 +360,8 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     const host = hostRef.current
     if (!host) return
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0xd7ddc7)
-    scene.fog = new THREE.Fog(0xd7ddc7, 62, 160)
+    scene.background = new THREE.Color(0xc9d7bb)
+    scene.fog = new THREE.Fog(0xc9d7bb, 72, 180)
     const camera = new THREE.OrthographicCamera(-20, 20, 20, -20, 0.1, 400)
     let renderer: THREE.WebGLRenderer
     try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }) }
@@ -264,11 +371,11 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     renderer.shadowMap.type = THREE.PCFShadowMap
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1.8
+    renderer.toneMappingExposure = 1.3
     renderer.domElement.className = 'world-canvas'
     host.prepend(renderer.domElement)
-    scene.add(new THREE.AmbientLight(0xffefdb, 2.25))
-    const sun = new THREE.DirectionalLight(0xffe8c3, 3)
+    scene.add(new THREE.AmbientLight(0xffefdb, 1.45))
+    const sun = new THREE.DirectionalLight(0xffe8c3, 2.25)
     sun.position.set(-20, 37, 27)
     sun.castShadow = true
     sun.shadow.mapSize.set(2048, 2048)

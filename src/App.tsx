@@ -96,7 +96,7 @@ export default function App() {
     </div>
     {selected && <aside className="session-panel" aria-label="Session details">
       <div className="panel-top"><span>SESSION / {selected.project.kind.toUpperCase()}</span><button type="button" onClick={() => setSelectedId(null)} aria-label="Close session details">×</button></div>
-      <div className="panel-portrait" aria-hidden="true"><span className={`portrait-orbit ${selected.session.status}`}><span className="portrait-head" /><span className="portrait-body" /></span></div>
+      <div className="panel-portrait" aria-hidden="true"><span className={`portrait-orbit ${selected.session.status}`}><span className="portrait-body" /><span className="portrait-head"><span className="portrait-eyes" /><span className="portrait-nose" /></span></span></div>
       <p className="panel-kicker">SEATED AT {selected.project.name.toUpperCase()}</p>
       <h2>{selected.session.name}</h2>
       <div className="panel-activity"><span className={`activity-dot ${selected.session.status}`} /><div><small>LATEST ACTIVITY</small><strong>{selected.session.activity}</strong></div></div>
