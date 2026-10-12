@@ -37,3 +37,15 @@ test('keeps projects with the same folder name separate', () => {
   assert.deepEqual(result.projects.map((project) => project.name), ['app', 'app'])
   assert.notEqual(result.projects[0].id, result.projects[1].id)
 })
+
+test('groups Codex dated chat folders without treating one-letter names as projects', () => {
+  const result = mapSessions('codex', [
+    { id: 'one', lastSeen: now }, { id: 'two', lastSeen: now },
+  ], 1, now, new Map([
+    ['one', { cwd: '/Users/example/Documents/Codex/2026-10-09/c', title: 'Set up Postman requests' }],
+    ['two', { cwd: '/Users/example/Documents/Codex/2026-10-10/l', title: 'Find Alexa options' }],
+  ]))
+  assert.equal(result.projects.length, 1)
+  assert.equal(result.projects[0].name, 'Codex chats')
+  assert.deepEqual(result.projects[0].sessions.map((session) => session.name), ['Set up Postman requests', 'Find Alexa options'])
+})

@@ -43,6 +43,16 @@ function projectName(value: unknown, fallback: string): string {
   return name.includes('/') || name.includes('\\') ? basename(name.replaceAll('\\', '/')) || fallback : name
 }
 
+function codexLocation(value: unknown): { name: string; key: string } {
+  const cwd = text(value, '', 1000).replaceAll('\\', '/')
+  // Codex gives projectless chats dated local folders such as Documents/Codex/2026-10-09/c.
+  // Their final path component is an arbitrary chat folder, not a project name.
+  if (/(?:^|\/)Documents\/Codex\/\d{4}-\d{2}-\d{2}\/[^/]+(?:\/.*)?$/.test(cwd)) {
+    return { name: 'Codex chats', key: 'codex:projectless-chats' }
+  }
+  return { name: projectName(cwd, 'Unmapped Codex work'), key: cwd || 'codex:unmapped-work' }
+}
+
 function latestActivity(value: unknown): string {
   if (!Array.isArray(value) || !value.length) return 'Activity observed'
   const event = record(value[0])
@@ -139,12 +149,13 @@ export function mapSessions(source: Source, raw: RawSession[], days: number, now
     const id = text(item.id, '', 160)
     const meta = metadata.get(id)
     const rawProject = source === 'claude' ? item.project : meta?.cwd
-    const project = projectName(rawProject, source === 'claude' ? 'Unmapped Claude work' : 'Unmapped Codex work')
-    const projectKey = text(rawProject, project, 1000)
+    const location = source === 'claude'
+      ? { name: projectName(rawProject, 'Unmapped Claude work'), key: text(rawProject, 'claude:unmapped-work', 1000) }
+      : codexLocation(rawProject)
     const title = source === 'claude'
       ? text(item.title, `Claude session ${id.slice(0, 8)}`)
       : text(meta?.title, `Codex session ${id.slice(0, 8)}`)
-    return { id, title, project, projectKey, lastSeen: item.lastSeen as number, activity: latestActivity(item.recentEvents) }
+    return { id, title, project: location.name, projectKey: location.key, lastSeen: item.lastSeen as number, activity: latestActivity(item.recentEvents) }
   }).filter((item) => item.id)
   const groups = new Map<string, LiveRecord[]>()
   for (const item of records) groups.set(item.projectKey, [...groups.get(item.projectKey) || [], item])
