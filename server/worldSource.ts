@@ -1,23 +1,33 @@
 import { readFile } from 'node:fs/promises'
 import type { Project, Session, WorldSnapshot } from '../src/worldData.js'
+import { getLiveSnapshot } from './liveSource.js'
 
 const examples: Project[] = [
-  { id: 'hearth', name: 'Hearth & Home', kind: 'Workshop', sessions: [
+  { id: 'village-hall', name: 'Village Hall', kind: 'Commons', source: 'claude', sessions: [
+    { id: 'sample-village-hall-1', name: 'Explore an idea', updatedAt: null, activity: 'Thinking together', status: 'quiet' },
+    { id: 'sample-village-hall-2', name: 'Sketch a direction', updatedAt: null, activity: 'Reviewing options', status: 'recent' },
+  ] },
+  { id: 'hearth', name: 'Hearth & Home', kind: 'Workshop', source: 'claude', sessions: [
     { id: 'sample-hearth-1', name: 'Shape the first welcome', updatedAt: null, activity: 'Sketching the arrival flow', status: 'recent' },
     { id: 'sample-hearth-2', name: 'Refine the warm palette', updatedAt: null, activity: 'Choosing materials', status: 'quiet' },
     { id: 'sample-hearth-3', name: 'Plan the courtyard', updatedAt: null, activity: 'Reviewing the plan', status: 'quiet' },
   ] },
-  { id: 'fieldnotes', name: 'Fieldnotes', kind: 'Library', sessions: [
+  { id: 'fieldnotes', name: 'Fieldnotes', kind: 'Library', source: 'claude', sessions: [
     { id: 'sample-field-1', name: 'Map the knowledge base', updatedAt: null, activity: 'Reading notes', status: 'recent' },
     { id: 'sample-field-2', name: 'Organize research trails', updatedAt: null, activity: 'Sorting references', status: 'quiet' },
   ] },
-  { id: 'lantern', name: 'Lantern Lab', kind: 'Atelier', sessions: [
-    { id: 'sample-lantern-1', name: 'Prototype a new idea', updatedAt: null, activity: 'Making a prototype', status: 'recent' },
-    { id: 'sample-lantern-2', name: 'Test small interactions', updatedAt: null, activity: 'Trying details', status: 'quiet' },
+  { id: 'lantern', name: 'Signal Keep', kind: 'Outpost', source: 'codex', sessions: [
+    { id: 'sample-lantern-1', name: 'Prototype the signal', updatedAt: null, activity: 'Building a prototype', status: 'recent' },
+    { id: 'sample-lantern-2', name: 'Test the watch', updatedAt: null, activity: 'Trying interactions', status: 'quiet' },
   ] },
-  { id: 'greenhouse', name: 'The Greenhouse', kind: 'Garden studio', sessions: [
-    { id: 'sample-green-1', name: 'Grow the roadmap', updatedAt: null, activity: 'Planning next steps', status: 'quiet' },
-    { id: 'sample-green-2', name: 'Tend the backlog', updatedAt: null, activity: 'Pruning ideas', status: 'quiet' },
+  { id: 'outpost-hall', name: 'Outpost Hall', kind: 'Commons', source: 'codex', sessions: [
+    { id: 'sample-outpost-hall-1', name: 'Try a new approach', updatedAt: null, activity: 'Running an experiment', status: 'recent' },
+    { id: 'sample-outpost-hall-2', name: 'Inspect a small fix', updatedAt: null, activity: 'Looking through code', status: 'quiet' },
+    { id: 'sample-outpost-hall-3', name: 'Draft a quick answer', updatedAt: null, activity: 'Writing a response', status: 'quiet' },
+  ] },
+  { id: 'greenhouse', name: 'The Foundry', kind: 'Forge', source: 'codex', sessions: [
+    { id: 'sample-green-1', name: 'Forge the roadmap', updatedAt: null, activity: 'Planning next steps', status: 'quiet' },
+    { id: 'sample-green-2', name: 'Tend the build', updatedAt: null, activity: 'Refining the build', status: 'quiet' },
   ] },
 ]
 
@@ -53,12 +63,22 @@ export function parseWorldFile(value: unknown): Project[] {
       if (status !== 'recent' && status !== 'quiet' && status !== 'unknown') throw new Error(`${sessionId}.status must be recent, quiet, or unknown`)
       return { id: sessionId, name: nonEmpty(session.name, `${sessionId}.name`), updatedAt: date, activity: nonEmpty(session.activity, `${sessionId}.activity`), status }
     })
-    return { id, name: nonEmpty(raw.name, `${id}.name`), kind: nonEmpty(raw.kind, `${id}.kind`), sessions }
+    const source = raw.source === undefined ? 'claude' : raw.source
+    if (source !== 'claude' && source !== 'codex') throw new Error(`${id}.source must be claude or codex`)
+    return { id, name: nonEmpty(raw.name, `${id}.name`), kind: nonEmpty(raw.kind, `${id}.kind`), source, sessions }
   })
 }
 
-export async function getWorldSnapshot(filePath?: string): Promise<WorldSnapshot> {
-  if (!filePath) return { source: 'sample', updatedAt: new Date().toISOString(), projects: examples }
-  const raw = JSON.parse(await readFile(filePath, 'utf8')) as unknown
-  return { source: 'file', updatedAt: new Date().toISOString(), projects: parseWorldFile(raw) }
+export async function getWorldSnapshot(filePath?: string, days = 2, mode = 'auto'): Promise<WorldSnapshot> {
+  if (filePath) {
+    const raw = JSON.parse(await readFile(filePath, 'utf8')) as unknown
+    return { source: 'file', updatedAt: new Date().toISOString(), projects: parseWorldFile(raw) }
+  }
+  if (mode !== 'sample') {
+    const live = await getLiveSnapshot(days)
+    if (live) return live
+    if (mode === 'telemetry') throw new Error('Both telemetry dashboards are unavailable')
+  }
+  return { source: 'sample', updatedAt: new Date().toISOString(), projects: examples,
+    notices: mode === 'sample' ? [] : ['Telemetry dashboards are unavailable; showing sample sessions.'] }
 }

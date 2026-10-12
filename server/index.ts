@@ -7,6 +7,8 @@ import { getWorldSnapshot } from './worldSource.js'
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const dist = join(root, 'dist')
 const dataFile = process.env.VILLAGE_DATA_FILE ? resolve(process.env.VILLAGE_DATA_FILE) : undefined
+const dataMode = process.env.VILLAGE_SOURCE || 'auto'
+if (!['auto', 'telemetry', 'sample'].includes(dataMode)) throw new Error('VILLAGE_SOURCE must be auto, telemetry, or sample')
 const port = Number(process.env.VILLAGE_PORT || 41321)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('VILLAGE_PORT must be a valid port')
 
@@ -16,13 +18,16 @@ function sendJson(response: ServerResponse, data: unknown, status = 200): void {
 }
 
 const server = createServer(async (request, response) => {
-  const pathname = new URL(request.url || '/', 'http://127.0.0.1').pathname
+  const url = new URL(request.url || '/', 'http://127.0.0.1')
+  const pathname = url.pathname
   if (request.method !== 'GET') { sendJson(response, { error: 'Not found' }, 404); return }
   if (pathname === '/api/world') {
-    try { sendJson(response, await getWorldSnapshot(dataFile)) }
+    const days = Number(url.searchParams.get('days') || '2')
+    if (![1, 2, 7, 30].includes(days)) { sendJson(response, { error: 'days must be 1, 2, 7, or 30' }, 400); return }
+    try { sendJson(response, await getWorldSnapshot(dataFile, days, dataMode)) }
     catch (error) {
       console.error('World data failed:', error)
-      sendJson(response, { error: 'World data is unavailable. Check VILLAGE_DATA_FILE.' }, 503)
+      sendJson(response, { error: 'World data is unavailable. Check the selected data source.' }, 503)
     }
     return
   }
