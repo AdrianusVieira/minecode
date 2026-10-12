@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import { parseWorldFile } from './worldSource.js'
+
+test('accepts a standalone session snapshot', () => {
+  const projects = parseWorldFile({ projects: [{ id: 'project-one', name: 'Project One', kind: 'Workshop', sessions: [{ id: 'session-one', name: 'Plan village', updatedAt: '2026-10-12T12:00:00Z', activity: 'Planning', status: 'recent' }] }] })
+  assert.equal(projects[0].sessions[0].name, 'Plan village')
+})
+
+test('rejects duplicate session identities across buildings', () => {
+  assert.throws(() => parseWorldFile({ projects: [
+    { id: 'a', name: 'A', kind: 'Workshop', sessions: [{ id: 'same', name: 'One', activity: 'Idle', status: 'quiet' }] },
+    { id: 'b', name: 'B', kind: 'Workshop', sessions: [{ id: 'same', name: 'Two', activity: 'Idle', status: 'quiet' }] },
+  ] }), /Duplicate session id/)
+})
