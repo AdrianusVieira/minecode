@@ -4,7 +4,7 @@ A navigable, blocky world for Claude Code and Codex sessions. Claude's workshops
 
 ![Minecode in sample mode, showing both districts and their communal halls](docs/village-preview.jpg)
 
-The world fills the browser viewport. Drag or use the arrow keys to pan, Shift-drag or right-drag to rotate and tilt, and scroll or pinch to zoom. Select a building name to focus it, and select a character to inspect its session. The map controls rotate, zoom, and fit the whole village. Keyboard shortcuts: arrow keys to pan, `0` to fit all, `Q` and `E` to rotate, and `Escape` to close the details panel. A coffee badge appears above a character while they take a sip.
+The world fills the browser viewport. Drag or use the arrow keys to pan, Shift-drag or right-drag to rotate and tilt, and scroll or pinch to zoom. Select a building name to focus it, and select a character to inspect its session usage, prompts, and activity. A straight path from each bridge end reaches a paved landing with an outdoor telemetry board before branching toward the buildings. Select a board to open that agent's usage dashboard in a side panel. The Claude Code board also has an Accounts view. The dashboard, account, and session panels share a light/dark switch. On desktop, drag the panel's left edge to set its width from 50% to 80%; the width and theme are saved in the browser. While a live session panel is open, the camera follows its character in the visible map area. The village and panels offer 24 hours, 48 hours, 7, 30, and 90 days, all time, or a custom range of local calendar days. A panel opens with the village's selected range. Data refreshes every 15 seconds. The map controls rotate, zoom, and fit the whole village. Keyboard shortcuts: arrow keys to pan, `0` to fit all, `Q` and `E` to rotate, and `Escape` to close the details panel. A coffee badge appears above a character while they take a sip.
 
 ## Try it
 
@@ -15,26 +15,30 @@ npm install
 VILLAGE_SOURCE=sample npm run dev
 ```
 
-Open <http://127.0.0.1:5177>. Sample mode uses fictional session data and needs no telemetry dashboards. The development command starts Vite and Minecode's local API together. For a built version, run `npm start` and open <http://127.0.0.1:41321>.
+Open <http://127.0.0.1:5177>. Sample mode uses fictional session data for the world; its telemetry boards show locally collected usage. The development command starts Vite and Minecode's API and telemetry receivers together. For a built version, run `npm start` and open <http://127.0.0.1:41321>.
 
 ## Use live sessions
 
-Keep your Claude Code and Codex telemetry dashboards running, then start Minecode with `npm run dev` (without `VILLAGE_SOURCE=sample`). It reads their existing session APIs over loopback:
+Stop the two telemetry dashboard servers before starting Minecode, because Minecode takes over their OTLP ports. Start Minecode with `npm run dev` (without `VILLAGE_SOURCE=sample`). It receives and stores the same OTLP streams itself:
 
-| Source | Read-only session API | Existing telemetry receiver |
-| --- | --- | --- |
-| Claude Code | `127.0.0.1:41300` | `127.0.0.1:4318` |
-| Codex | `127.0.0.1:18765` | `127.0.0.1:18766` |
+| Source | Minecode receiver |
+| --- | --- |
+| Claude Code | `http://127.0.0.1:4318/v1/metrics` and `/v1/logs` |
+| Codex | `http://127.0.0.1:18766/v1/logs` |
 
-Minecode listens separately on `127.0.0.1:41321`; Vite uses `127.0.0.1:5177` during development. It does not bind to the dashboards' ports or change either agent's telemetry configuration. Override ports with `CLAUDE_DASHBOARD_PORT`, `CODEX_DASHBOARD_PORT`, or `VILLAGE_PORT` as needed.
+The existing Claude Code and Codex exporter settings can keep those endpoints. Minecode stores data in Git-ignored `data/claude.sqlite3` and `data/codex.sqlite3`. On its first start, it imports history from the sibling dashboard databases if they exist. It does not need those repos afterward. Set `VILLAGE_DATA_DIR` to move its storage, `CLAUDE_OTLP_PORT` or `CODEX_OTLP_PORT` to change receiver ports, and `VILLAGE_PORT` to change the web port. All listeners bind to loopback. Vite uses `127.0.0.1:5177` during development.
 
-The default view shows sessions observed in the last 48 hours. The time control offers 24 hours, 7 days, and 30 days, and the browser refreshes every 15 seconds. If one dashboard is unavailable, the other still appears. If both are unavailable, automatic mode shows the fictional sample world. Set `VILLAGE_SOURCE=telemetry` to require live data.
+The default view shows sessions observed in the last 48 hours. A custom range includes both chosen local dates; filtering uses each telemetry record's timestamp. A new store starts empty until its first OTLP event arrives. Use `VILLAGE_SOURCE=sample` for a fictional world.
 
-Claude's API provides project and session titles. Codex's API provides session IDs and activity; Minecode uses local Codex metadata when available to recover titles and project folders. Projectless Claude sessions gather in **Village Hall**. Codex's dated chat folders and sessions without project metadata gather in **Outpost Hall**. Recent activity is an observed signal, not proof that a session is still running.
+Select **Exile this session** in a live character's panel to remove its Minecode telemetry and saved title. After confirmation, the character walks beyond the territory and disappears. The deletion marker persists across restarts, so later telemetry for that same ID is ignored. Exile does not delete the original Claude Code or Codex conversation; it cannot be undone in Minecode.
+
+Codex emits some conversation IDs with only startup/completion signals and no recorded prompt, API request, or tool result. Minecode retains their events and token observations but omits these signal-only IDs from the village's session count and the dashboard's conversation count. The Codex timeline still includes their reported tokens and labels its count of all observed IDs.
+
+Claude telemetry provides project IDs, and Minecode scans local Claude metadata for custom chat titles. Codex telemetry provides session IDs and activity; Minecode uses local Codex metadata when available to recover titles and project folders. Projectless Claude sessions gather in **Village Hall**. Codex's dated chat folders and sessions without project metadata gather in **Outpost Hall**. Recent activity is an observed signal, not proof that a session is still running.
 
 ### Local data boundary
 
-The sample world and preview image contain fictional sessions; no live telemetry snapshots are tracked. At runtime, Minecode's local API sends only names, IDs, timestamps, and short generic activity labels to the browser; it does not return prompts, transcripts, tool inputs, or credentials. Names and IDs from your own sessions may still be private. Keep the live server and dashboard APIs on loopback, and use sample mode for screenshots or public demos.
+The sample world and preview image contain fictional sessions; no live telemetry snapshots are tracked by Git. At runtime, Minecode's world API sends only names, IDs, timestamps, and short generic activity labels to the browser. The board API sends aggregated usage and Claude account totals. Selecting a character loads that session's usage, activity, and any locally sanitized prompt text that was received. The APIs do not return full transcripts, tool inputs, or credentials. The local databases contain received telemetry, including sanitized prompt text where available, so protect or delete them as you would the old dashboard databases. Names, IDs, account emails, prompts, and usage totals from your own sessions may still be private. Keep Minecode on loopback and use sample mode for public screenshots.
 
 ## Use a standalone data file
 

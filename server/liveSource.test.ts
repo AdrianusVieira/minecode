@@ -72,3 +72,13 @@ test('keeps a crowded commons in one hall', () => {
   assert.equal(result.projects[0].name, 'Outpost Hall')
   assert.equal(result.projects[0].sessions.length, 37)
 })
+
+test('Codex village omits signal-only IDs and applies the selected time window', () => {
+  const result = mapSessions('codex', [
+    { id: 'worked', hasUserPrompt: true, prompts: 1, lastSeen: now },
+    { id: 'continued', hasUserPrompt: true, prompts: 0, completedResponses: 1, lastSeen: now },
+    { id: 'empty', hasUserPrompt: false, prompts: 0, completedResponses: 1, lastSeen: now },
+    { id: 'old', hasUserPrompt: true, prompts: 1, lastSeen: now - 3 * 86_400_000 },
+  ], 2, now)
+  assert.deepEqual(result.projects.flatMap((project) => project.sessions.map((session) => session.externalId)), ['worked', 'continued'])
+})
