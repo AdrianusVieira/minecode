@@ -594,8 +594,9 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   addBridge(scene)
   const boards = new Map<TelemetrySource, THREE.Vector3>()
   for (const source of ['claude', 'codex'] as const) {
-    const x = source === 'claude' ? -11.5 : 11.5
-    const z = 11
+    // Put a board beside each bridge approach, clear of the crossing and street path.
+    const x = source === 'claude' ? -9.5 : 9.5
+    const z = 4.4
     const group = new THREE.Group()
     group.position.set(x, 0, z)
     group.userData.telemetrySource = source
