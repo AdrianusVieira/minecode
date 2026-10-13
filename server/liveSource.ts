@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import type { Project, Session, WorldSnapshot } from '../src/worldData.js'
 import type { TelemetryStores } from './telemetryStore.js'
 import { hasCodexWork } from './codexSessionEvidence.js'
+import type { TelemetryPeriod } from '../src/telemetryData.js'
 
 const execFileAsync = promisify(execFile)
 const DAY = 86_400_000
@@ -130,10 +131,11 @@ async function codexMetadata(ids: Set<string>): Promise<MetadataMap> {
   return metadata
 }
 
-export function mapSessions(source: Source, raw: RawSession[], days: number, now: number, metadata: MetadataMap = new Map()): { projects: Project[]; notices: string[] } {
+export function mapSessions(source: Source, raw: RawSession[], period: TelemetryPeriod, now: number, metadata: MetadataMap = new Map()): { projects: Project[]; notices: string[] } {
   const notices: string[] = []
-  const cutoff = now - days * DAY
-  const filtered = raw.filter((item) => timestamp(item.lastSeen) !== null && (item.lastSeen as number) >= cutoff
+  const cutoff = typeof period === 'number' ? now - period * DAY : typeof period === 'object' ? period.start : 0
+  const end = typeof period === 'object' ? period.end : Number.MAX_SAFE_INTEGER
+  const filtered = raw.filter((item) => timestamp(item.lastSeen) !== null && (item.lastSeen as number) >= cutoff && (item.lastSeen as number) < end
     && (source !== 'codex' || hasCodexWork(item)))
     .sort((a, b) => (b.lastSeen as number) - (a.lastSeen as number))
   if (filtered.length > MAX_PER_SOURCE) notices.push(`Showing the ${MAX_PER_SOURCE} most recent ${source === 'codex' ? 'Codex' : 'Claude'} sessions in this period.`)
@@ -171,16 +173,16 @@ export function mapSessions(source: Source, raw: RawSession[], days: number, now
   return { projects, notices }
 }
 
-export async function getLiveSnapshot(days: number, stores: TelemetryStores): Promise<WorldSnapshot> {
-  const upstreamDays = days <= 7 ? 7 : 30
+export async function getLiveSnapshot(period: TelemetryPeriod, stores: TelemetryStores): Promise<WorldSnapshot> {
+  const window = period === 'all' ? null : period
   const [claude, codex] = await Promise.allSettled([
-    Promise.resolve().then(() => stores.claude.sessions(upstreamDays).sessions.map(record)),
-    Promise.resolve().then(() => stores.codex.sessions(upstreamDays).sessions.map(record)),
+    Promise.resolve().then(() => stores.claude.sessions(window).sessions.map(record)),
+    Promise.resolve().then(() => stores.codex.sessions(window).sessions.map(record)),
   ])
   const now = Date.now()
   const metadata = codex.status === 'fulfilled' ? await codexMetadata(new Set(codex.value.map((item) => text(item.id, '')))) : new Map<string, Metadata>()
-  const claudeWorld = claude.status === 'fulfilled' ? mapSessions('claude', claude.value, days, now) : { projects: [], notices: ['Claude telemetry is unavailable.'] }
-  const codexWorld = codex.status === 'fulfilled' ? mapSessions('codex', codex.value, days, now, metadata) : { projects: [], notices: ['Codex telemetry is unavailable.'] }
+  const claudeWorld = claude.status === 'fulfilled' ? mapSessions('claude', claude.value, period, now) : { projects: [], notices: ['Claude telemetry is unavailable.'] }
+  const codexWorld = codex.status === 'fulfilled' ? mapSessions('codex', codex.value, period, now, metadata) : { projects: [], notices: ['Codex telemetry is unavailable.'] }
   const projects = [...claudeWorld.projects, ...codexWorld.projects]
   const notices = [...claudeWorld.notices, ...codexWorld.notices]
   if (projects.length > 60) notices.push('Showing the first 60 project buildings in this period.')

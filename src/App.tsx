@@ -7,6 +7,7 @@ import SessionTelemetryPanel from './SessionTelemetryPanel'
 import PanelDisplayControls, { type PanelTheme } from './PanelDisplayControls'
 import PanelResizeHandle from './PanelResizeHandle'
 import type { TelemetrySource } from './telemetryData'
+import TimeRangePicker, { useTimeRange } from './TimeRangePicker'
 
 function timeAgo(value: string | null): string {
   if (!value) return 'No timestamp supplied'
@@ -36,7 +37,10 @@ export default function App() {
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [showGuide, setShowGuide] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [days, setDays] = useState<1 | 2 | 7 | 30>(2)
+  const worldRange = useTimeRange(2)
+  const [exilingId, setExilingId] = useState<string | null>(null)
+  const exilingRef = useRef(false)
+  const refreshWorldRef = useRef<(() => Promise<void>) | null>(null)
   const [telemetrySource, setTelemetrySource] = useState<TelemetrySource | null>(null)
   const [panelTheme, setPanelTheme] = useState<PanelTheme>(savedTheme)
   const [panelWidth, setPanelWidth] = useState(savedWidth)
@@ -46,20 +50,34 @@ export default function App() {
 
   useEffect(() => {
     let alive = true
-    const load = async () => {
+    const load = async (force = false) => {
+      if (!worldRange.query) return
       try {
-        const response = await fetch(`/api/world?days=${days}`, { cache: 'no-store' })
+        const response = await fetch(`/api/world?${worldRange.query}`, { cache: 'no-store' })
         if (!response.ok) throw new Error(`World data request failed (${response.status})`)
         const next = await response.json() as WorldSnapshot
-        if (alive) { setSnapshot(next); setError(null) }
+        if (alive && (force || !exilingRef.current)) { setSnapshot(next); setError(null) }
       } catch (cause) {
         if (alive) setError(cause instanceof Error ? cause.message : 'World data is unavailable')
       }
     }
+    refreshWorldRef.current = () => load(true)
     void load()
     const timer = window.setInterval(() => void load(), 15_000)
-    return () => { alive = false; window.clearInterval(timer) }
-  }, [days])
+    return () => { alive = false; refreshWorldRef.current = null; window.clearInterval(timer) }
+  }, [worldRange.query])
+
+  const finishExile = (id: string) => {
+    exilingRef.current = true
+    setExilingId(id)
+    setSelectedId(null)
+    window.setTimeout(() => {
+      setSnapshot((current) => current ? { ...current, projects: current.projects.map((project) => ({
+        ...project, sessions: project.sessions.filter((session) => session.id !== id),
+      })).filter((project) => project.sessions.length > 0) } : current)
+      void refreshWorldRef.current?.().finally(() => { exilingRef.current = false; setExilingId(null) })
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 350 : 3200)
+  }
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -104,7 +122,7 @@ export default function App() {
   const displayControls = <PanelDisplayControls theme={panelTheme} onThemeChange={setPanelTheme} />
   const resizeHandle = <PanelResizeHandle width={panelWidth} onWidthChange={setPanelWidth} />
   return <main className={`app-shell ${sessionFocusOpen ? 'session-focus-open' : ''}`} style={{ '--panel-width': `${panelWidth}vw` } as React.CSSProperties}>
-    {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId} focusedId={focusedId} lockSessionFocus={sessionFocusOpen} onSelectSession={setSelectedId} onFocusProject={focusProject} onOpenTelemetry={(source) => { setSelectedId(null); setShowGuide(false); setTelemetrySource(source) }} />}
+    {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId || exilingId} exilingId={exilingId} focusedId={focusedId} lockSessionFocus={sessionFocusOpen || !!exilingId} onSelectSession={(id) => { if (!exilingId) setSelectedId(id) }} onFocusProject={focusProject} onOpenTelemetry={(source) => { setSelectedId(null); setShowGuide(false); setTelemetrySource(source) }} />}
     {!snapshot && <div className="loading-world"><div className="loading-mark">✦</div><p>{error || 'Preparing the village…'}</p><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
     <header className="app-header">
       <div className="brand-mark" aria-hidden="true"><span className="brand-roof" /><span className="brand-home" /><span className="brand-door" /></div>
@@ -112,7 +130,7 @@ export default function App() {
     </header>
     <div className="top-actions">
       {snapshot && <span className="source-badge" title={snapshot.notices?.join(' ')}><span className="source-dot" />{snapshot.source === 'sample' ? 'Sample village' : snapshot.source === 'telemetry' ? 'Live telemetry' : 'Local file'}{snapshot.notices?.length ? ' ·' : ''}</span>}
-      {snapshot?.source === 'telemetry' && <label className="period-control"><span>Show</span><select aria-label="Session time range" value={days} onChange={(event) => { setDays(Number(event.target.value) as 1 | 2 | 7 | 30); setSelectedId(null); setFocusedId(null) }}><option value={1}>24h</option><option value={2}>48h</option><option value={7}>7d</option><option value={30}>30d</option></select></label>}
+      {snapshot?.source === 'telemetry' && <div className="period-control"><TimeRangePicker control={worldRange} compact /></div>}
       <button type="button" className="round-action" aria-label="How to explore" title="How to explore" onClick={() => setShowGuide((value) => !value)}>?</button>
     </div>
     {showGuide && <div className="guide-popover" role="dialog" aria-label="How to explore">
@@ -144,8 +162,9 @@ export default function App() {
       {snapshot?.source !== 'sample' && <button type="button" className="copy-button" onClick={() => void copyId()}>{copied ? 'Copied session ID' : 'Copy session ID'} <span aria-hidden="true">↗</span></button>}
       <p className="panel-note">Activity is the latest supplied signal. It does not confirm that a session is currently running.</p>
     </aside>}
-    {selected && snapshot?.source === 'telemetry' && <SessionTelemetryPanel key={`${selected.project.source}:${selected.session.id}`} session={selected.session} project={selected.project} initialPeriod={days} theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} onClose={() => setSelectedId(null)} />}
-    {telemetrySource && <TelemetryPanel key={telemetrySource} source={telemetrySource} initialPeriod={days} theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} onClose={() => setTelemetrySource(null)} />}
+    {selected && snapshot?.source === 'telemetry' && <SessionTelemetryPanel key={`${selected.project.source}:${selected.session.id}`} session={selected.session} project={selected.project} initialPeriod={worldRange.range || 2} theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} onExiled={() => finishExile(selected!.session.id)} onClose={() => setSelectedId(null)} />}
+    {telemetrySource && <TelemetryPanel key={telemetrySource} source={telemetrySource} initialPeriod={worldRange.range || 2} theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} onClose={() => setTelemetrySource(null)} />}
+    {!worldRange.query && snapshot?.source === 'telemetry' && <div className="data-warning" role="status">Choose a valid date range. The village still shows the previous period.</div>}
     {error && snapshot && <div className="data-warning" role="status">Showing the last village snapshot. {error}</div>}
   </main>
 }

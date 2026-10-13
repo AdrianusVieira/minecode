@@ -12,6 +12,7 @@ import { importHistory } from './telemetryStore.js'
 import { getClaudeAccounts, getSessionEvents, getSessionView } from './telemetryViews.js'
 import { getWorldSnapshot } from './worldSource.js'
 import { mapSessions } from './liveSource.js'
+import { periodFrom } from './timeRange.js'
 
 const attribute = (key: string, value: string) => ({ key, value: { stringValue: value } })
 const close = (server: Server) => new Promise<void>((resolve) => server.close(() => resolve()))
@@ -118,4 +119,74 @@ test('Codex prompt history distinguishes a continued chat from a signal-only ID'
     const world = mapSessions('codex', recent, 2, now + 2)
     assert.deepEqual(world.projects.flatMap((project) => project.sessions.map((session) => session.externalId)), ['continued'])
   } finally { store.close(); rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('custom ranges apply to the world, dashboards, accounts, and session details', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'minecode-range-'))
+  const stores = { claude: new ClaudeStore(join(dir, 'claude.sqlite3')), codex: new CodexStore(join(dir, 'codex.sqlite3')) }
+  const oldCodexHome = process.env.CODEX_HOME
+  process.env.CODEX_HOME = dir
+  try {
+    const first = Date.now() - 3 * 86_400_000
+    const second = first + 86_400_000
+    const metric = (id: string, at: number) => ({ resourceMetrics: [{ scopeMetrics: [{ metrics: [{ name: 'claude_code.token.usage', sum: {
+      aggregationTemporality: 1, dataPoints: [{ timeUnixNano: String(BigInt(at) * 1_000_000n), asInt: '5', attributes: [attribute('session.id', id), attribute('user.email', 'person@example.test'), attribute('type', 'input')] }],
+    } }] }] }] })
+    const log = (id: string, at: number) => ({ resourceLogs: [{ scopeLogs: [{ logRecords: [{
+      timeUnixNano: String(BigInt(at) * 1_000_000n), body: { stringValue: 'codex.user_prompt' },
+      attributes: [attribute('conversation.id', id), attribute('prompt', 'Range check')],
+    }] }] }] })
+    stores.claude.ingestMetrics(metric('first-claude', first))
+    stores.claude.ingestMetrics(metric('second-claude', second))
+    stores.codex.ingestLogs(log('first-codex', first))
+    stores.codex.ingestLogs(log('second-codex', second))
+    const range = { start: first, end: second }
+    const url = new URL(`http://localhost/api/world?days=custom&start=${first}&end=${second}`)
+    assert.deepEqual(periodFrom(url), range)
+    assert.equal(periodFrom(new URL('http://localhost/?days=custom&start=1&end=1')), null)
+    assert.equal(periodFrom(new URL('http://localhost/?days=custom&start=x&end=2')), null)
+    const world = await getWorldSnapshot(undefined, range, 'telemetry', stores)
+    assert.deepEqual(world.projects.flatMap((project) => project.sessions.map((session) => session.externalId)).sort(), ['first-claude', 'first-codex'])
+    assert.equal(getTelemetrySummary('claude', range, stores).conversations, 1)
+    assert.equal(getTelemetrySummary('codex', range, stores).conversations, 1)
+    assert.equal(getClaudeAccounts(range, stores).accounts[0].sessions, 1)
+    assert.equal(getSessionView('claude', 'second-claude', range, stores), null)
+    assert.equal(getSessionView('codex', 'second-codex', range, stores), null)
+  } finally {
+    if (oldCodexHome === undefined) delete process.env.CODEX_HOME
+    else process.env.CODEX_HOME = oldCodexHome
+    stores.claude.close(); stores.codex.close(); rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('exile removes local history and blocks future events for both agents', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'minecode-exile-'))
+  const claudePath = join(dir, 'claude.sqlite3'), codexPath = join(dir, 'codex.sqlite3')
+  const stores = { claude: new ClaudeStore(claudePath), codex: new CodexStore(codexPath) }
+  const at = Date.now()
+  const metric = { resourceMetrics: [{ scopeMetrics: [{ metrics: [{ name: 'claude_code.token.usage', sum: {
+    aggregationTemporality: 1, dataPoints: [{ timeUnixNano: String(BigInt(at) * 1_000_000n), asInt: '7', attributes: [attribute('session.id', 'exiled-claude'), attribute('type', 'input')] }],
+  } }] }] }] }
+  const log = { resourceLogs: [{ scopeLogs: [{ logRecords: [{ timeUnixNano: String(BigInt(at) * 1_000_000n), body: { stringValue: 'codex.user_prompt' },
+    attributes: [attribute('conversation.id', 'exiled-codex'), attribute('prompt', 'Hello')],
+  }] }] }] }
+  try {
+    stores.claude.ingestMetrics(metric)
+    stores.codex.ingestLogs(log)
+    assert.equal(stores.claude.deleteSession('exiled-claude'), true)
+    assert.equal(stores.codex.deleteConversation('exiled-codex'), true)
+    assert.equal(stores.claude.deleteSession('exiled-claude'), false)
+    assert.equal(stores.codex.deleteConversation('exiled-codex'), false)
+    assert.equal(stores.claude.ingestMetrics(metric), 0)
+    assert.equal(stores.codex.ingestLogs(log), 0)
+    assert.equal(getTelemetrySummary('claude', 'all', stores).conversations, 0)
+    assert.equal(getTelemetrySummary('codex', 'all', stores).conversations, 0)
+  } finally { stores.claude.close(); stores.codex.close() }
+  const reopened = { claude: new ClaudeStore(claudePath), codex: new CodexStore(codexPath) }
+  try {
+    assert.equal(reopened.claude.ingestMetrics(metric), 0)
+    assert.equal(reopened.codex.ingestLogs(log), 0)
+    assert.equal(getTelemetrySummary('claude', 'all', reopened).conversations, 0)
+    assert.equal(getTelemetrySummary('codex', 'all', reopened).conversations, 0)
+  } finally { reopened.claude.close(); reopened.codex.close(); rmSync(dir, { recursive: true, force: true }) }
 })

@@ -7,7 +7,8 @@ import { getTelemetrySummary } from './telemetrySummary.js'
 import { openTelemetryStores } from './telemetryStore.js'
 import { startTelemetryReceivers } from './telemetryReceiver.js'
 import { getClaudeAccounts, getSessionEvents, getSessionView } from './telemetryViews.js'
-import type { TelemetryPeriod, TelemetrySource } from '../src/telemetryData.js'
+import { periodFrom } from './timeRange.js'
+import type { TelemetrySource } from '../src/telemetryData.js'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const dist = join(root, 'dist')
@@ -31,19 +32,26 @@ function sendJson(response: ServerResponse, data: unknown, status = 200): void {
   response.end(JSON.stringify(data))
 }
 
-function periodFrom(url: URL): TelemetryPeriod | null {
-  const raw = url.searchParams.get('days') || '30'
-  return ['1', '2', '7', '30', '90', 'all'].includes(raw) ? raw === 'all' ? 'all' : Number(raw) as 1 | 2 | 7 | 30 | 90 : null
-}
-
 const server = createServer(async (request, response) => {
   const url = new URL(request.url || '/', 'http://127.0.0.1')
   const pathname = url.pathname
+  const sessionMatch = /^\/api\/telemetry\/(claude|codex)\/sessions\/([^/]+?)(\/events)?$/.exec(pathname)
+  if (request.method === 'DELETE' && sessionMatch && !sessionMatch[3]) {
+    let id: string
+    try { id = decodeURIComponent(sessionMatch[2]) }
+    catch { sendJson(response, { error: 'Invalid session ID' }, 400); return }
+    if (!id || id.length > 200) { sendJson(response, { error: 'Invalid session ID' }, 400); return }
+    try {
+      const removed = sessionMatch[1] === 'claude' ? stores.claude.deleteSession(id) : stores.codex.deleteConversation(id)
+      sendJson(response, removed ? { exiled: true } : { error: 'Session not found' }, removed ? 200 : 404)
+    } catch (error) { console.error('Session exile failed:', error); sendJson(response, { error: 'Could not exile this session.' }, 503) }
+    return
+  }
   if (request.method !== 'GET') { sendJson(response, { error: 'Not found' }, 404); return }
   if (pathname === '/api/world') {
-    const days = Number(url.searchParams.get('days') || '2')
-    if (![1, 2, 7, 30].includes(days)) { sendJson(response, { error: 'days must be 1, 2, 7, or 30' }, 400); return }
-    try { sendJson(response, await getWorldSnapshot(dataFile, days, dataMode, stores)) }
+    const period = periodFrom(url, 2)
+    if (period === null) { sendJson(response, { error: 'Invalid time range' }, 400); return }
+    try { sendJson(response, await getWorldSnapshot(dataFile, period, dataMode, stores)) }
     catch (error) {
       console.error('World data failed:', error)
       sendJson(response, { error: 'World data is unavailable. Check the selected data source.' }, 503)
@@ -53,7 +61,7 @@ const server = createServer(async (request, response) => {
   const telemetryMatch = /^\/api\/telemetry\/(claude|codex)$/.exec(pathname)
   if (telemetryMatch) {
     const period = periodFrom(url)
-    if (period === null) { sendJson(response, { error: 'days must be 1, 2, 7, 30, 90, or all' }, 400); return }
+    if (period === null) { sendJson(response, { error: 'Invalid time range' }, 400); return }
     try {
       sendJson(response, getTelemetrySummary(telemetryMatch[1] as 'claude' | 'codex', period, stores))
     } catch (error) {
@@ -64,15 +72,14 @@ const server = createServer(async (request, response) => {
   }
   if (pathname === '/api/telemetry/claude/accounts') {
     const period = periodFrom(url)
-    if (period === null) { sendJson(response, { error: 'days must be 1, 2, 7, 30, 90, or all' }, 400); return }
+    if (period === null) { sendJson(response, { error: 'Invalid time range' }, 400); return }
     try { sendJson(response, getClaudeAccounts(period, stores)) }
     catch (error) { console.error('Account overview failed:', error); sendJson(response, { error: 'Account data is unavailable.' }, 503) }
     return
   }
-  const sessionMatch = /^\/api\/telemetry\/(claude|codex)\/sessions\/([^/]+?)(\/events)?$/.exec(pathname)
   if (sessionMatch) {
     const period = periodFrom(url)
-    if (period === null) { sendJson(response, { error: 'days must be 1, 2, 7, 30, 90, or all' }, 400); return }
+    if (period === null) { sendJson(response, { error: 'Invalid time range' }, 400); return }
     let id: string
     try { id = decodeURIComponent(sessionMatch[2]) }
     catch { sendJson(response, { error: 'Invalid session ID' }, 400); return }

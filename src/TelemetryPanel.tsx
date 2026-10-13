@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AccountOverview, TelemetryPeriod, TelemetrySource, TelemetrySummary } from './telemetryData'
 import type { PanelTheme } from './PanelDisplayControls'
+import TimeRangePicker, { useTimeRange } from './TimeRangePicker'
 
 const whole = new Intl.NumberFormat()
 const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
@@ -56,10 +57,10 @@ function AccountsView({ overview }: { overview: AccountOverview }) {
   </div>
 }
 
-export default function TelemetryPanel({ source, initialPeriod, theme, displayControls, resizeHandle, onClose }: { source: TelemetrySource; initialPeriod: 1 | 2 | 7 | 30; theme: PanelTheme; displayControls: React.ReactNode; resizeHandle: React.ReactNode; onClose: () => void }) {
+export default function TelemetryPanel({ source, initialPeriod, theme, displayControls, resizeHandle, onClose }: { source: TelemetrySource; initialPeriod: TelemetryPeriod; theme: PanelTheme; displayControls: React.ReactNode; resizeHandle: React.ReactNode; onClose: () => void }) {
   const panelRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
-  const [period, setPeriod] = useState<TelemetryPeriod>(initialPeriod)
+  const period = useTimeRange(initialPeriod)
   const [view, setView] = useState<'overview' | 'accounts'>('overview')
   const [data, setData] = useState<TelemetrySummary | null>(null)
   const [accounts, setAccounts] = useState<AccountOverview | null>(null)
@@ -70,7 +71,7 @@ export default function TelemetryPanel({ source, initialPeriod, theme, displayCo
   }, [source])
   const containFocus = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Tab') return
-    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>('button, select, [role="separator"]') || [])].filter((item) => item.getClientRects().length > 0)
+    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>('button, select, input, [role="separator"]') || [])].filter((item) => item.getClientRects().length > 0)
     if (!controls.length) return
     const first = controls[0], last = controls.at(-1)!
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
@@ -78,9 +79,10 @@ export default function TelemetryPanel({ source, initialPeriod, theme, displayCo
   }
   useEffect(() => {
     const controller = new AbortController()
+    if (!period.query) { setData(null); setAccounts(null); setError(null); return () => controller.abort() }
     const load = async () => {
       try {
-        const response = await fetch(view === 'accounts' ? `/api/telemetry/claude/accounts?days=${period}` : `/api/telemetry/${source}?days=${period}`, { signal: controller.signal, cache: 'no-store' })
+        const response = await fetch(view === 'accounts' ? `/api/telemetry/claude/accounts?${period.query}` : `/api/telemetry/${source}?${period.query}`, { signal: controller.signal, cache: 'no-store' })
         const next = await response.json() as TelemetrySummary | AccountOverview | { error: string }
         if (!response.ok) throw new Error('error' in next ? next.error : `Telemetry request failed (${response.status})`)
         if (!controller.signal.aborted) {
@@ -96,7 +98,7 @@ export default function TelemetryPanel({ source, initialPeriod, theme, displayCo
     void load()
     const timer = window.setInterval(() => void load(), 15_000)
     return () => { controller.abort(); window.clearInterval(timer) }
-  }, [source, period, view])
+  }, [source, period.query, view])
 
   const name = source === 'claude' ? 'Claude Code' : 'Codex'
   return <><div className="telemetry-scrim" onClick={onClose} aria-hidden="true" />
@@ -105,8 +107,8 @@ export default function TelemetryPanel({ source, initialPeriod, theme, displayCo
       <div className="telemetry-panel-head"><div><p className="telemetry-eyebrow">{name.toUpperCase()} / TELEMETRY</p><h2>{view === 'accounts' ? 'Claude Code accounts' : `${name} dashboard`}</h2><p>{view === 'accounts' ? 'Usage attributed to each Claude account.' : `Observed usage across ${source === 'claude' ? 'chats' : 'conversations'}.`}</p></div><button ref={closeRef} type="button" className="telemetry-close" onClick={onClose} aria-label="Close telemetry dashboard">×</button></div>
       {displayControls}
       {source === 'claude' && <div className="telemetry-tabs" role="tablist" aria-label="Claude telemetry views"><button type="button" role="tab" aria-selected={view === 'overview'} className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}>Overview</button><button type="button" role="tab" aria-selected={view === 'accounts'} className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}>Accounts</button></div>}
-      <div className="telemetry-toolbar"><label>Period <select value={period} onChange={(event) => setPeriod(event.target.value === 'all' ? 'all' : Number(event.target.value) as 1 | 2 | 7 | 30 | 90)}><option value={1}>Last 24 hours</option><option value={2}>Last 48 hours</option><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option><option value="all">All time</option></select></label>{(data || accounts) && <span>Updated {new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date((data || accounts)!.updatedAt))}</span>}</div>
-      {error ? <div className="telemetry-message" role="status"><h3>Telemetry unavailable</h3><p>{error}</p><p>Minecode receives and stores {name} telemetry locally.</p></div> : view === 'accounts' ? accounts ? <AccountsView overview={accounts} /> : <div className="telemetry-message" role="status">Loading accounts…</div> : !data ? <div className="telemetry-message" role="status">Loading telemetry…</div> : <div className="telemetry-panel-content">
+      <div className="telemetry-toolbar"><TimeRangePicker control={period} />{(data || accounts) && <span>Updated {new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date((data || accounts)!.updatedAt))}</span>}</div>
+      {!period.query ? <div className="telemetry-message">Choose a valid start and end date.</div> : error ? <div className="telemetry-message" role="status"><h3>Telemetry unavailable</h3><p>{error}</p><p>Minecode receives and stores {name} telemetry locally.</p></div> : view === 'accounts' ? accounts ? <AccountsView overview={accounts} /> : <div className="telemetry-message" role="status">Loading accounts…</div> : !data ? <div className="telemetry-message" role="status">Loading telemetry…</div> : <div className="telemetry-panel-content">
         <div className="telemetry-metrics">
           <Metric label={source === 'claude' ? 'Chats' : 'Conversations'} value={number(data.conversations)} hint={data.signalOnlyIds ? `${number(data.signalOnlyIds)} signal-only IDs excluded` : 'Distinct IDs'} />
           <Metric label="Prompts" value={number(data.prompts)} hint="User prompt events" />

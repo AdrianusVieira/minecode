@@ -57,6 +57,14 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .source-badge, .round-action, .period-control { border: 1px solid #cbbf9f; background: #fbf6e8ed; box-shadow: 0 5px 20px #43452f25; backdrop-filter: blur(12px); }
 .source-badge { display: flex; align-items: center; gap: 9px; min-height: 35px; padding: 0 13px; border-radius: 22px; color: #635d4c; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
 .period-control { display: flex; align-items: center; gap: 6px; min-height: 35px; padding: 0 10px; border-radius: 22px; color: #827763; font-size: 10px; font-weight: 700; }
+.time-range-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.time-range-picker label { display: inline-flex; align-items: center; gap: 8px; }
+.time-range-dates { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.time-range-dates input { padding: 7px 8px; border: 1px solid var(--panel-control-border, #b6ab92); border-radius: 4px; background: var(--panel-select, #fffaf0); color: var(--panel-text, #514b3f); font: inherit; }
+.range-error { color: #b76b54; font-size: 11px; letter-spacing: normal; text-transform: none; }
+.period-control .time-range-picker { gap: 6px; }
+.period-control .time-range-dates input { width: 123px; padding: 4px 5px; color: #514b3f; }
+.period-control:has(.time-range-dates) { border-radius: 8px; }
 .period-control select { border: 0; background: transparent; color: #514b3f; font: inherit; cursor: pointer; }
 .period-control select:focus-visible { outline: 2px solid #9a633f; outline-offset: 2px; }
 .source-dot { width: 7px; height: 7px; border-radius: 50%; background: #80a87a; box-shadow: 0 0 0 3px #80a87a36; }
@@ -161,10 +169,21 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .telemetry-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 19px 0; color: var(--panel-muted); font-size: 11px; }
 .telemetry-toolbar label { display: flex; align-items: center; gap: 10px; text-transform: uppercase; letter-spacing: .12em; }
 .telemetry-toolbar select { padding: 8px 11px; border: 1px solid var(--panel-control-border); border-radius: 4px; background: var(--panel-select); color: var(--panel-text); font: inherit; text-transform: none; letter-spacing: normal; }
+.session-exile { margin: -5px 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--panel-border); }
+.exile-open { padding: 9px 0; border: 0; background: transparent; color: var(--panel-muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+.exile-open:hover { color: var(--panel-text); }
+.exile-open span { margin-left: 5px; }
+.exile-confirm { max-width: 540px; margin-top: 8px; padding: 18px; border: 1px solid #a66b57; border-radius: 5px; background: var(--panel-card); }
+.exile-confirm strong { color: var(--panel-text); font-family: 'Fraunces', Georgia, serif; font-size: 18px; font-weight: 500; }
+.exile-confirm p { color: var(--panel-muted); font-size: 12px; line-height: 1.55; }
+.exile-confirm > div { display: flex; flex-wrap: wrap; gap: 9px; }
+.exile-confirm button { padding: 9px 12px; border: 1px solid var(--panel-control-border); border-radius: 4px; background: var(--panel-control); color: var(--panel-text); font-size: 11px; font-weight: 700; cursor: pointer; }
+.exile-confirm .exile-confirm-button { border-color: #a66b57; background: #925441; color: #fff9f0; }
+.exile-confirm button:disabled { opacity: .55; cursor: wait; }
 .telemetry-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .telemetry-metric { min-height: 119px; padding: 20px 21px; border: 1px solid var(--panel-border); border-radius: 5px; background: var(--panel-card); }
 .telemetry-metric span { display: block; color: var(--panel-muted); font-size: 11px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
-.telemetry-metric strong { display: block; margin: 9px 0 2px; font-family: 'Fraunces', Georgia, serif; font-size: clamp(24px, 2.6vw, 34px); font-weight: 500; line-height: 1.1; overflow-wrap: anywhere; }
+.telemetry-metric strong { display: block; margin: 9px 0 2px; font-family: 'Fraunces', Georgia, serif; font-size: clamp(20px, 2vw, 30px); font-weight: 500; line-height: 1.1; overflow-wrap: anywhere; }
 .telemetry-metric small { color: var(--panel-subtle); font-size: 11px; }
 .telemetry-timeline { margin-top: 17px; border: 1px solid var(--panel-border); border-radius: 5px; background: var(--panel-card); }
 .telemetry-section-head { display: flex; justify-content: space-between; align-items: end; gap: 15px; padding: 20px 22px; border-bottom: 1px solid var(--panel-border); }
@@ -244,7 +263,11 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
   .top-actions { top: 15px; right: 14px; }
   .source-badge { padding: 0 8px; font-size: 9px; }
   .period-control { padding: 0 5px; }
-  .period-control span { display: none; }
+  .period-control .time-range-picker > label > span { display: none; }
+  .top-actions:has(.time-range-dates) { left: 14px; right: 14px; top: 72px; justify-content: flex-end; flex-wrap: wrap; }
+  .top-actions:has(.time-range-dates) .source-badge { display: none; }
+  .period-control .time-range-dates input { width: 112px; }
+  .app-shell:has(.top-actions .time-range-dates) .world-footer-center { top: 151px; }
   .world-intro { display: none; }
   .world-footer-left { bottom: 15px; left: 14px; }
   .map-caption { display: none; }

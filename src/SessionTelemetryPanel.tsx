@@ -3,6 +3,7 @@ import { Chart, Metric, currency, duration, number } from './TelemetryPanel'
 import type { ClaudeSession, CodexSession, SessionActivity, SessionView, TelemetryPeriod, TelemetrySource } from './telemetryData'
 import type { Project, Session } from './worldData'
 import type { PanelTheme } from './PanelDisplayControls'
+import TimeRangePicker, { useTimeRange } from './TimeRangePicker'
 
 const dateTime = (value: number | null) => value === null ? 'Unavailable' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 const eventNames: Record<string, string> = {
@@ -36,17 +37,20 @@ function Activity({ events }: { events: SessionActivity[] }) {
   </li>)}</ol>
 }
 
-export default function SessionTelemetryPanel({ session, project, initialPeriod, theme, displayControls, resizeHandle, onClose }: { session: Session; project: Project; initialPeriod: 1 | 2 | 7 | 30; theme: PanelTheme; displayControls: React.ReactNode; resizeHandle: React.ReactNode; onClose: () => void }) {
+export default function SessionTelemetryPanel({ session, project, initialPeriod, theme, displayControls, resizeHandle, onExiled, onClose }: { session: Session; project: Project; initialPeriod: TelemetryPeriod; theme: PanelTheme; displayControls: React.ReactNode; resizeHandle: React.ReactNode; onExiled: () => void; onClose: () => void }) {
   const source: TelemetrySource = project.source
   const id = session.externalId || session.id
   const panelRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const loadedCountRef = useRef(50)
-  const [period, setPeriod] = useState<TelemetryPeriod>(initialPeriod)
+  const period = useTimeRange(initialPeriod)
   const [data, setData] = useState<SessionView | null>(null)
   const [activity, setActivity] = useState<SessionActivity[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [confirmExile, setConfirmExile] = useState(false)
+  const [exiling, setExiling] = useState(false)
+  const [exileError, setExileError] = useState<string | null>(null)
 
   useEffect(() => {
     closeRef.current?.focus()
@@ -55,15 +59,16 @@ export default function SessionTelemetryPanel({ session, project, initialPeriod,
 
   useEffect(() => {
     const controller = new AbortController()
+    if (!period.query) { setData(null); setActivity([]); setError(null); return () => controller.abort() }
     const load = async () => {
       try {
-        const response = await fetch(`/api/telemetry/${source}/sessions/${encodeURIComponent(id)}?days=${period}`, { signal: controller.signal, cache: 'no-store' })
+        const response = await fetch(`/api/telemetry/${source}/sessions/${encodeURIComponent(id)}?${period.query}`, { signal: controller.signal, cache: 'no-store' })
         const next = await response.json() as SessionView | { error: string }
         if (!response.ok) throw new Error('error' in next ? next.error : `Session request failed (${response.status})`)
         const view = next as SessionView
         const offsets = Array.from({ length: Math.max(0, Math.ceil((Math.min(loadedCountRef.current, view.activityTotal) - 50) / 50)) }, (_, index) => 50 + index * 50)
         const extra = await Promise.all(offsets.map(async (offset) => {
-          const page = await fetch(`/api/telemetry/${source}/sessions/${encodeURIComponent(id)}/events?days=${period}&offset=${offset}`, { signal: controller.signal, cache: 'no-store' })
+          const page = await fetch(`/api/telemetry/${source}/sessions/${encodeURIComponent(id)}/events?${period.query}&offset=${offset}`, { signal: controller.signal, cache: 'no-store' })
           if (!page.ok) throw new Error(`Activity request failed (${page.status})`)
           return (await page.json() as { events: SessionActivity[] }).events
         }))
@@ -77,13 +82,13 @@ export default function SessionTelemetryPanel({ session, project, initialPeriod,
     void load()
     const timer = window.setInterval(() => void load(), 15_000)
     return () => { controller.abort(); window.clearInterval(timer) }
-  }, [source, id, period])
+  }, [source, id, period.query])
 
   const loadMore = async () => {
-    if (loadingMore || !data) return
+    if (loadingMore || !data || !period.query) return
     setLoadingMore(true)
     try {
-      const response = await fetch(`/api/telemetry/${source}/sessions/${encodeURIComponent(id)}/events?days=${period}&offset=${activity.length}`, { cache: 'no-store' })
+      const response = await fetch(`/api/telemetry/${source}/sessions/${encodeURIComponent(id)}/events?${period.query}&offset=${activity.length}`, { cache: 'no-store' })
       if (!response.ok) throw new Error(`Activity request failed (${response.status})`)
       const next = await response.json() as { events: SessionActivity[] }
       setActivity((current) => {
@@ -95,9 +100,22 @@ export default function SessionTelemetryPanel({ session, project, initialPeriod,
     finally { setLoadingMore(false) }
   }
 
+  const exile = async () => {
+    if (exiling) return
+    setExiling(true); setExileError(null)
+    try {
+      const response = await fetch(`/api/telemetry/${source}/sessions/${encodeURIComponent(id)}`, { method: 'DELETE', cache: 'no-store' })
+      if (!response.ok) {
+        const payload = await response.json() as { error?: string }
+        throw new Error(payload.error || `Exile failed (${response.status})`)
+      }
+      onExiled()
+    } catch (cause) { setExileError(cause instanceof Error ? cause.message : 'Exile failed'); setExiling(false) }
+  }
+
   const containFocus = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Tab') return
-    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>('button, select, summary, [role="separator"]') || [])].filter((item) => item.getClientRects().length > 0)
+    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>('button, select, input, summary, [role="separator"]') || [])].filter((item) => item.getClientRects().length > 0)
     if (!controls.length) return
     const first = controls[0], last = controls.at(-1)!
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
@@ -117,8 +135,12 @@ export default function SessionTelemetryPanel({ session, project, initialPeriod,
       {resizeHandle}
       <div className="telemetry-panel-head"><div><p className="telemetry-eyebrow">{name.toUpperCase()} / SESSION AT {project.name.toUpperCase()}</p><h2>{session.name}</h2><p>Observed activity and usage for this {source === 'claude' ? 'chat' : 'conversation'}.</p></div><button ref={closeRef} type="button" className="telemetry-close" onClick={onClose} aria-label="Close session details">×</button></div>
       {displayControls}
-      <div className="telemetry-toolbar"><label>Period <select value={period} onChange={(event) => setPeriod(event.target.value === 'all' ? 'all' : Number(event.target.value) as 1 | 2 | 7 | 30 | 90)}><option value={1}>Last 24 hours</option><option value={2}>Last 48 hours</option><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option><option value="all">All time</option></select></label>{data && <span>Last observed {dateTime(detail?.lastSeen ?? null)}</span>}</div>
-      {error && !data ? <div className="telemetry-message" role="status"><h3>Session unavailable</h3><p>{error}</p></div> : !data ? <div className="telemetry-message" role="status">Loading session…</div> : <div className="session-telemetry-content">
+      <div className="telemetry-toolbar"><TimeRangePicker control={period} />{data && <span>Last observed {dateTime(detail?.lastSeen ?? null)}</span>}</div>
+      <div className="session-exile"><button type="button" className="exile-open" onClick={() => setConfirmExile(true)} disabled={exiling}>Exile this session <span aria-hidden="true">↗</span></button>
+        {confirmExile && <div className="exile-confirm" role="group" aria-label="Confirm exile"><strong>Send this character beyond the village?</strong><p>This permanently deletes its telemetry and saved title from Minecode. New events for this ID will be ignored. The original {name} conversation remains in its own app.</p><div><button type="button" onClick={() => setConfirmExile(false)} disabled={exiling}>Keep here</button><button type="button" className="exile-confirm-button" onClick={() => void exile()} disabled={exiling}>{exiling ? 'Preparing departure…' : 'Exile and delete data'}</button></div></div>}
+        {exileError && <p className="session-note" role="alert">{exileError}</p>}
+      </div>
+      {!period.query ? <div className="telemetry-message">Choose a valid start and end date.</div> : error && !data ? <div className="telemetry-message" role="status"><h3>Session unavailable</h3><p>{error}</p></div> : !data ? <div className="telemetry-message" role="status">Loading session…</div> : <div className="session-telemetry-content">
         <div className="telemetry-metrics">
           <Metric label={source === 'claude' ? 'Tokens' : 'Observed tokens'} value={number(tokenTotal)} hint={source === 'codex' ? `${codex?.tokenTimeline.length || 0} of ${codex?.completedResponses || 0} completions with counts` : 'Input, output, and cache'} />
           <Metric label="Prompts" value={number(detail!.prompts)} />

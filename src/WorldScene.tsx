@@ -5,7 +5,7 @@ import type { TelemetrySource } from './telemetryData'
 
 export type PanKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
 export type WorldControls = { fit: () => void; zoom: (direction: number) => void; rotate: (direction: number) => void; focusProject: (id: string) => void; setPanKey: (key: PanKey, pressed: boolean) => void; clearPanKeys: () => void }
-type Props = { projects: Project[]; selectedId: string | null; focusedId: string | null; lockSessionFocus: boolean; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void; onOpenTelemetry: (source: TelemetrySource) => void }
+type Props = { projects: Project[]; selectedId: string | null; exilingId: string | null; focusedId: string | null; lockSessionFocus: boolean; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void; onOpenTelemetry: (source: TelemetrySource) => void }
 type Place = { point: THREE.Vector3; width: number }
 type Routine = { desk: number; travel: number; linger: number; settle: number; period: number; phase: number; coffeePeriod: number; coffeeDuration: number; coffeePhase: number; strideSpeed: number }
 type PersonRig = {
@@ -725,14 +725,14 @@ const initialYaw = Math.atan2(cameraOffset.x, cameraOffset.z)
 const initialPitch = Math.atan2(cameraOffset.y, Math.hypot(cameraOffset.x, cameraOffset.z))
 const cameraDistance = cameraOffset.length()
 
-function placeAlongRoute(rig: PersonRig, progress: number, returning: boolean): void {
+function placeAlongRoute(rig: PersonRig, progress: number, returning: boolean, route = rig.route): void {
   let total = 0
-  for (let index = 1; index < rig.route.length; index++) total += rig.route[index].distanceTo(rig.route[index - 1])
+  for (let index = 1; index < route.length; index++) total += route[index].distanceTo(route[index - 1])
   let remaining = total * progress
-  for (let index = 1; index < rig.route.length; index++) {
-    const from = rig.route[index - 1], to = rig.route[index]
+  for (let index = 1; index < route.length; index++) {
+    const from = route[index - 1], to = route[index]
     const length = from.distanceTo(to)
-    if (remaining <= length || index === rig.route.length - 1) {
+    if (remaining <= length || index === route.length - 1) {
       rig.person.position.lerpVectors(from, to, THREE.MathUtils.clamp(remaining / length, 0, 1))
       const dx = (to.x - from.x) * (returning ? -1 : 1)
       const dz = (to.z - from.z) * (returning ? -1 : 1)
@@ -741,6 +741,22 @@ function placeAlongRoute(rig: PersonRig, progress: number, returning: boolean): 
     }
     remaining -= length
   }
+}
+
+function animateExile(rig: PersonRig, route: THREE.Vector3[], progress: number, time: number, reducedMotion: boolean): void {
+  placeAlongRoute(rig, progress, false, route)
+  const stride = reducedMotion ? 0 : Math.sin(time * 13)
+  rig.body.position.y = 0.27 + Math.abs(stride) * 0.035
+  rig.leftLeg.position.y = rig.rightLeg.position.y = 0.9
+  rig.leftLeg.scale.y = rig.rightLeg.scale.y = 1.35
+  rig.leftLeg.rotation.x = stride * 0.4
+  rig.rightLeg.rotation.x = -stride * 0.4
+  rig.leftArm.rotation.x = -0.25 + stride * 0.3
+  rig.rightArm.rotation.x = -0.25 - stride * 0.3
+  rig.cup.visible = false
+  rig.ring.visible = false
+  rig.person.scale.setScalar(1 - THREE.MathUtils.smoothstep(progress, 0.82, 1))
+  rig.anchor.set(rig.origin.x + rig.person.position.x, 2.75 + rig.body.position.y, rig.origin.z + rig.person.position.z)
 }
 
 function animatePerson(rig: PersonRig, time: number, reducedMotion: boolean): void {
@@ -800,12 +816,14 @@ function animatePerson(rig: PersonRig, time: number, reducedMotion: boolean): vo
   rig.anchor.set(rig.origin.x + rig.person.position.x, 2.75 + rig.body.position.y, rig.origin.z + rig.person.position.z)
 }
 
-const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, focusedId, lockSessionFocus, onSelectSession, onFocusProject, onOpenTelemetry }, ref) {
+const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, exilingId, focusedId, lockSessionFocus, onSelectSession, onFocusProject, onOpenTelemetry }, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<Runtime | null>(null)
   const panKeysRef = useRef(new Set<PanKey>())
   const selectedRef = useRef(selectedId)
   selectedRef.current = selectedId
+  const exilingRef = useRef(exilingId)
+  exilingRef.current = exilingId
   const lockedSessionRef = useRef<string | null>(null)
   lockedSessionRef.current = lockSessionFocus ? selectedId : null
   const focusBeforeRef = useRef<{ target: THREE.Vector3; zoom: number; pitch: number } | null>(null)
@@ -960,13 +978,26 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     const orbitOffset = new THREE.Vector3()
     let frame = 0
     let previousFrame = performance.now()
+    let exile: { id: string; started: number; route: THREE.Vector3[] } | null = null
     const render = () => {
       frame = requestAnimationFrame(render)
       const now = performance.now()
       const delta = Math.min((now - previousFrame) / 1000, 0.05)
       previousFrame = now
       const t = now / 1000
-      rigs.forEach((rig) => animatePerson(rig, t, reducedMotion.matches))
+      if (exilingRef.current && exile?.id !== exilingRef.current) {
+        const rig = rigs.get(exilingRef.current)
+        if (rig) {
+          const destination = rig.route.at(-1)!
+          const outward = rig.origin.x < 0 ? -1 : 1
+          exile = { id: exilingRef.current, started: now, route: [rig.person.position.clone(),
+            ...rig.route.slice(1), new THREE.Vector3(outward * 16, 0, destination.z + 7)] }
+        }
+      }
+      rigs.forEach((rig, id) => {
+        if (exile?.id === id) animateExile(rig, exile.route, Math.min(1, (now - exile.started) / (reducedMotion.matches ? 250 : 3000)), t, reducedMotion.matches)
+        else animatePerson(rig, t, reducedMotion.matches)
+      })
       const lockedRig = lockedSessionRef.current ? rigs.get(lockedSessionRef.current) : null
       if (lockedRig) {
         panKeysRef.current.clear()
@@ -1073,7 +1104,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     }
   }, [projects, signature])
 
-  useEffect(() => { runtimeRef.current?.rigs.forEach((rig, id) => { rig.ring.visible = id === selectedId }) }, [selectedId, signature])
+  useEffect(() => { runtimeRef.current?.rigs.forEach((rig, id) => { rig.ring.visible = id === selectedId && id !== exilingId }) }, [selectedId, exilingId, signature])
 
   const selectedProjectId = projects.find((project) => project.sessions.some((session) => session.id === selectedId))?.id
   const activeProjectId = selectedProjectId || focusedId

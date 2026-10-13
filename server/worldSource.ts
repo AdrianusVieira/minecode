@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import type { Project, Session, WorldSnapshot } from '../src/worldData.js'
 import { getLiveSnapshot } from './liveSource.js'
 import type { TelemetryStores } from './telemetryStore.js'
+import type { TelemetryPeriod } from '../src/telemetryData.js'
 
 const examples: Project[] = [
   { id: 'village-hall', name: 'Village Hall', kind: 'Commons', source: 'claude', sessions: [
@@ -70,12 +71,12 @@ export function parseWorldFile(value: unknown): Project[] {
   })
 }
 
-export async function getWorldSnapshot(filePath?: string, days = 2, mode = 'auto', stores?: TelemetryStores): Promise<WorldSnapshot> {
+export async function getWorldSnapshot(filePath?: string, period: TelemetryPeriod = 2, mode = 'auto', stores?: TelemetryStores): Promise<WorldSnapshot> {
   if (filePath) {
     const raw = JSON.parse(await readFile(filePath, 'utf8')) as unknown
     return { source: 'file', updatedAt: new Date().toISOString(), projects: parseWorldFile(raw) }
   }
-  if (mode !== 'sample' && stores) return getLiveSnapshot(days, stores)
+  if (mode !== 'sample' && stores) return getLiveSnapshot(period, stores)
   if (mode === 'telemetry') throw new Error('Telemetry storage is unavailable')
   return { source: 'sample', updatedAt: new Date().toISOString(), projects: examples,
     notices: mode === 'sample' ? [] : ['Telemetry storage is unavailable; showing sample sessions.'] }
