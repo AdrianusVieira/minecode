@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
 import type { Project, Session, WorldSnapshot } from '../src/worldData.js'
+import type { TelemetryStores } from './telemetryStore.js'
 
 const execFileAsync = promisify(execFile)
 const DAY = 86_400_000
@@ -65,25 +66,6 @@ function latestActivity(value: unknown): string {
   if (!Array.isArray(value) || !value.length) return 'Activity observed'
   const event = record(value[0])
   return eventNames[text(event.name, '', 50)] || 'Activity observed'
-}
-
-function parseSessions(value: unknown): RawSession[] {
-  const payload = record(value)
-  if (!Array.isArray(payload.sessions)) throw new Error('Telemetry response has no sessions array')
-  return payload.sessions.map(record)
-}
-
-function portFromEnv(name: string, fallback: number): number {
-  const port = Number(process.env[name] || fallback)
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`${name} must be a valid port`)
-  return port
-}
-
-async function fetchSessions(port: number, days: number): Promise<RawSession[]> {
-  const upstreamDays = days <= 7 ? 7 : 30
-  const response = await fetch(`http://127.0.0.1:${port}/api/sessions?days=${upstreamDays}`, { signal: AbortSignal.timeout(5000), cache: 'no-store' })
-  if (!response.ok) throw new Error(`Telemetry dashboard returned ${response.status}`)
-  return parseSessions(await response.json() as unknown)
 }
 
 async function catalogMetadata(): Promise<MetadataMap> {
@@ -187,12 +169,12 @@ export function mapSessions(source: Source, raw: RawSession[], days: number, now
   return { projects, notices }
 }
 
-export async function getLiveSnapshot(days: number): Promise<WorldSnapshot | null> {
+export async function getLiveSnapshot(days: number, stores: TelemetryStores): Promise<WorldSnapshot> {
+  const upstreamDays = days <= 7 ? 7 : 30
   const [claude, codex] = await Promise.allSettled([
-    fetchSessions(portFromEnv('CLAUDE_DASHBOARD_PORT', 41300), days),
-    fetchSessions(portFromEnv('CODEX_DASHBOARD_PORT', 18765), days),
+    Promise.resolve().then(() => stores.claude.sessions(upstreamDays).sessions.map(record)),
+    Promise.resolve().then(() => stores.codex.sessions(upstreamDays).sessions.map(record)),
   ])
-  if (claude.status === 'rejected' && codex.status === 'rejected') return null
   const now = Date.now()
   const metadata = codex.status === 'fulfilled' ? await codexMetadata(new Set(codex.value.map((item) => text(item.id, '')))) : new Map<string, Metadata>()
   const claudeWorld = claude.status === 'fulfilled' ? mapSessions('claude', claude.value, days, now) : { projects: [], notices: ['Claude telemetry is unavailable.'] }

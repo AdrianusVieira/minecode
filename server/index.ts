@@ -4,6 +4,8 @@ import { extname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getWorldSnapshot } from './worldSource.js'
 import { getTelemetrySummary } from './telemetrySummary.js'
+import { openTelemetryStores } from './telemetryStore.js'
+import { startTelemetryReceivers } from './telemetryReceiver.js'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const dist = join(root, 'dist')
@@ -12,6 +14,15 @@ const dataMode = process.env.VILLAGE_SOURCE || 'auto'
 if (!['auto', 'telemetry', 'sample'].includes(dataMode)) throw new Error('VILLAGE_SOURCE must be auto, telemetry, or sample')
 const port = Number(process.env.VILLAGE_PORT || 41321)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('VILLAGE_PORT must be a valid port')
+const { stores, stopTitles } = await openTelemetryStores()
+let receivers
+try { receivers = await startTelemetryReceivers(stores) }
+catch (error) {
+  stopTitles()
+  stores.claude.close()
+  stores.codex.close()
+  throw error
+}
 
 function sendJson(response: ServerResponse, data: unknown, status = 200): void {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
@@ -25,7 +36,7 @@ const server = createServer(async (request, response) => {
   if (pathname === '/api/world') {
     const days = Number(url.searchParams.get('days') || '2')
     if (![1, 2, 7, 30].includes(days)) { sendJson(response, { error: 'days must be 1, 2, 7, or 30' }, 400); return }
-    try { sendJson(response, await getWorldSnapshot(dataFile, days, dataMode)) }
+    try { sendJson(response, await getWorldSnapshot(dataFile, days, dataMode, stores)) }
     catch (error) {
       console.error('World data failed:', error)
       sendJson(response, { error: 'World data is unavailable. Check the selected data source.' }, 503)
@@ -38,10 +49,10 @@ const server = createServer(async (request, response) => {
     if (!['7', '30', '90', 'all'].includes(rawPeriod)) { sendJson(response, { error: 'days must be 7, 30, 90, or all' }, 400); return }
     try {
       const period = rawPeriod === 'all' ? 'all' : Number(rawPeriod) as 7 | 30 | 90
-      sendJson(response, await getTelemetrySummary(telemetryMatch[1] as 'claude' | 'codex', period))
+      sendJson(response, getTelemetrySummary(telemetryMatch[1] as 'claude' | 'codex', period, stores))
     } catch (error) {
       console.error('Telemetry summary failed:', error)
-      sendJson(response, { error: `${telemetryMatch[1] === 'claude' ? 'Claude Code' : 'Codex'} dashboard is unavailable. Start its local server to see live usage.` }, 503)
+      sendJson(response, { error: 'Telemetry data is unavailable. Check Minecode’s local storage.' }, 503)
     }
     return
   }
@@ -59,3 +70,12 @@ const server = createServer(async (request, response) => {
 })
 
 server.listen(port, '127.0.0.1', () => console.log(`Minecode: http://127.0.0.1:${port}`))
+const stop = () => {
+  stopTitles()
+  server.close()
+  for (const receiver of receivers) receiver.close()
+  stores.claude.close()
+  stores.codex.close()
+}
+process.once('SIGINT', stop)
+process.once('SIGTERM', stop)

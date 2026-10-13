@@ -15,26 +15,26 @@ npm install
 VILLAGE_SOURCE=sample npm run dev
 ```
 
-Open <http://127.0.0.1:5177>. Sample mode uses fictional session data for the world; its telemetry boards show live usage only when the corresponding local dashboard is running, otherwise they explain how to connect it. The development command starts Vite and Minecode's local API together. For a built version, run `npm start` and open <http://127.0.0.1:41321>.
+Open <http://127.0.0.1:5177>. Sample mode uses fictional session data for the world; its telemetry boards show locally collected usage. The development command starts Vite and Minecode's API and telemetry receivers together. For a built version, run `npm start` and open <http://127.0.0.1:41321>.
 
 ## Use live sessions
 
-Keep your Claude Code and Codex telemetry dashboards running, then start Minecode with `npm run dev` (without `VILLAGE_SOURCE=sample`). It reads their existing session APIs over loopback:
+Stop the two telemetry dashboard servers before starting Minecode, because Minecode takes over their OTLP ports. Start Minecode with `npm run dev` (without `VILLAGE_SOURCE=sample`). It receives and stores the same OTLP streams itself:
 
-| Source | Read-only session API | Existing telemetry receiver |
-| --- | --- | --- |
-| Claude Code | `127.0.0.1:41300` | `127.0.0.1:4318` |
-| Codex | `127.0.0.1:18765` | `127.0.0.1:18766` |
+| Source | Minecode receiver |
+| --- | --- |
+| Claude Code | `http://127.0.0.1:4318/v1/metrics` and `/v1/logs` |
+| Codex | `http://127.0.0.1:18766/v1/logs` |
 
-Minecode listens separately on `127.0.0.1:41321`; Vite uses `127.0.0.1:5177` during development. It does not bind to the dashboards' ports or change either agent's telemetry configuration. Override ports with `CLAUDE_DASHBOARD_PORT`, `CODEX_DASHBOARD_PORT`, or `VILLAGE_PORT` as needed.
+The existing Claude Code and Codex exporter settings can keep those endpoints. Minecode stores data in Git-ignored `data/claude.sqlite3` and `data/codex.sqlite3`. On its first start, it imports history from the sibling dashboard databases if they exist. It does not need those repos afterward. Set `VILLAGE_DATA_DIR` to move its storage, `CLAUDE_OTLP_PORT` or `CODEX_OTLP_PORT` to change receiver ports, and `VILLAGE_PORT` to change the web port. All listeners bind to loopback. Vite uses `127.0.0.1:5177` during development.
 
-The default view shows sessions observed in the last 48 hours. The time control offers 24 hours, 7 days, and 30 days, and the browser refreshes every 15 seconds. If one dashboard is unavailable, the other still appears. If both are unavailable, automatic mode shows the fictional sample world. Set `VILLAGE_SOURCE=telemetry` to require live data.
+The default view shows sessions observed in the last 48 hours. The time control offers 24 hours, 7 days, and 30 days, and the browser refreshes every 15 seconds. A new store starts empty until its first OTLP event arrives. Use `VILLAGE_SOURCE=sample` for a fictional world.
 
-Claude's API provides project and session titles. Codex's API provides session IDs and activity; Minecode uses local Codex metadata when available to recover titles and project folders. Projectless Claude sessions gather in **Village Hall**. Codex's dated chat folders and sessions without project metadata gather in **Outpost Hall**. Recent activity is an observed signal, not proof that a session is still running.
+Claude telemetry provides project IDs, and Minecode scans local Claude metadata for custom chat titles. Codex telemetry provides session IDs and activity; Minecode uses local Codex metadata when available to recover titles and project folders. Projectless Claude sessions gather in **Village Hall**. Codex's dated chat folders and sessions without project metadata gather in **Outpost Hall**. Recent activity is an observed signal, not proof that a session is still running.
 
 ### Local data boundary
 
-The sample world and preview image contain fictional sessions; no live telemetry snapshots are tracked. At runtime, Minecode's world API sends only names, IDs, timestamps, and short generic activity labels to the browser. The telemetry board API sends aggregated counts, cost estimates where available, and a bounded token timeline. Neither API returns prompts, transcripts, tool inputs, or credentials. Names, IDs, and usage totals from your own sessions may still be private. Keep the live server and dashboard APIs on loopback, and close the telemetry dashboards before taking public screenshots, even in sample mode.
+The sample world and preview image contain fictional sessions; no live telemetry snapshots are tracked by Git. At runtime, Minecode's world API sends only names, IDs, timestamps, and short generic activity labels to the browser. The telemetry board API sends aggregated counts, cost estimates where available, and a bounded token timeline. Neither API returns prompts, transcripts, tool inputs, or credentials. The local databases contain received telemetry, including sanitized prompt text where available, so protect or delete them as you would the old dashboard databases. Names, IDs, and usage totals from your own sessions may still be private. Keep Minecode on loopback and use sample mode for public screenshots.
 
 ## Use a standalone data file
 

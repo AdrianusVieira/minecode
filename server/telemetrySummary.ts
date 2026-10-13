@@ -1,4 +1,5 @@
 import type { TelemetryPeriod, TelemetrySource, TelemetrySummary } from '../src/telemetryData.js'
+import type { TelemetryStores } from './telemetryStore.js'
 
 type Raw = Record<string, unknown>
 const object = (value: unknown): Raw => value && typeof value === 'object' && !Array.isArray(value) ? value as Raw : {}
@@ -62,11 +63,7 @@ export function summarizeTelemetry(source: TelemetrySource, period: TelemetryPer
   }
 }
 
-export async function getTelemetrySummary(source: TelemetrySource, period: TelemetryPeriod): Promise<TelemetrySummary> {
-  const env = source === 'claude' ? 'CLAUDE_DASHBOARD_PORT' : 'CODEX_DASHBOARD_PORT'
-  const port = Number(process.env[env] || (source === 'claude' ? 41300 : 18765))
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`${env} must be a valid port`)
-  const response = await fetch(`http://127.0.0.1:${port}/api/sessions?days=${period}`, { signal: AbortSignal.timeout(5000), cache: 'no-store' })
-  if (!response.ok) throw new Error(`Telemetry dashboard returned ${response.status}`)
-  return summarizeTelemetry(source, period, await response.json() as unknown)
+export function getTelemetrySummary(source: TelemetrySource, period: TelemetryPeriod, stores: TelemetryStores): TelemetrySummary {
+  const window = period === 'all' ? null : period
+  return summarizeTelemetry(source, period, source === 'claude' ? stores.claude.sessions(window) : stores.codex.sessions(window))
 }
