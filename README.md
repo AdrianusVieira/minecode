@@ -4,7 +4,7 @@ A navigable, blocky world for Claude Code and Codex sessions. Claude's workshops
 
 ![Minecode in sample mode, showing both districts and their communal halls](docs/village-preview.jpg)
 
-The world fills the browser viewport. Drag or use the arrow keys to pan, Shift-drag or right-drag to rotate and tilt, and scroll or pinch to zoom. Select a building name to focus it, and select a character to inspect its session. Each bank has an outdoor telemetry board: select it to open that agent's usage dashboard in a panel occupying 75% of the screen on desktop. The panel offers 7, 30, and 90 day or all-time totals and a cumulative token chart; it refreshes every 15 seconds. The map controls rotate, zoom, and fit the whole village. Keyboard shortcuts: arrow keys to pan, `0` to fit all, `Q` and `E` to rotate, and `Escape` to close the details panel. A coffee badge appears above a character while they take a sip.
+The world fills the browser viewport. Drag or use the arrow keys to pan, Shift-drag or right-drag to rotate and tilt, and scroll or pinch to zoom. Select a building name to focus it, and select a character to inspect its session. A straight path from each bridge end reaches a paved landing with an outdoor telemetry board before branching toward the buildings. Select a board to open that agent's usage dashboard in a panel occupying 75% of the screen on desktop. The panel offers 7, 30, and 90 day or all-time totals and a cumulative token chart; it refreshes every 15 seconds. The map controls rotate, zoom, and fit the whole village. Keyboard shortcuts: arrow keys to pan, `0` to fit all, `Q` and `E` to rotate, and `Escape` to close the details panel. A coffee badge appears above a character while they take a sip.
 
 ## Try it
 

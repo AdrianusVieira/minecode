@@ -573,7 +573,11 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   const maxWidth = Math.max(9.4, ...projects.map((project) => buildingMetrics(project).width))
   const claudeProjects = projects.filter((project) => project.source !== 'codex' && project.kind !== 'Commons')
   const codexProjects = projects.filter((project) => project.source === 'codex' && project.kind !== 'Commons')
-  const districtX = Math.max(19.5, maxWidth / 2 + 13)
+  const districtX = Math.max(26, maxWidth / 2 + 22)
+  const streetXOffset = 14
+  const landingXOffset = 10.2
+  const landingZ = -2.1
+  const boardZ = -5.2
   const rowZ = [-22, 18, -43, 43]
   const rowX = { claude: [-5, 6, 16, -5], codex: [6, -5, 16, -5] }
   const site = (source: 'claude' | 'codex', index: number) => {
@@ -594,11 +598,17 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   addBridge(scene)
   const boards = new Map<TelemetrySource, THREE.Vector3>()
   for (const source of ['claude', 'codex'] as const) {
-    // Put a board beside each bridge approach, clear of the crossing and street path.
-    const x = source === 'claude' ? -9.5 : 9.5
-    const z = 4.4
+    const codex = source === 'codex'
+    const x = (codex ? 1 : -1) * landingXOffset
+    // A paved landing continues straight from the bridge. The board sits at its
+    // far edge, facing the approach, while the district streets branch beyond it.
+    box(scene, 9.2, 0.05, 8.4, codex ? materials.outpostStoneDark : materials.path, x, 0.005, landingZ)
+    for (let column = -3; column <= 3; column++) for (let row = -3; row <= 3; row++) {
+      box(scene, 0.94, 0.025, 0.76, codex ? (column + row) % 2 ? materials.outpostStone : materials.outpostWood
+        : materials.cobble[(column + row + 8) % materials.cobble.length], x + column * 1.2, 0.045, landingZ + row * 1.04).castShadow = false
+    }
     const group = new THREE.Group()
-    group.position.set(x, 0, z)
+    group.position.set(x, 0, boardZ)
     group.userData.telemetrySource = source
     const frame = source === 'claude' ? materials.timber : materials.outpostTimber
     const face = source === 'claude' ? materials.parchment : materials.outpostBanner
@@ -609,7 +619,7 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
     box(group, 4.42, 0.24, 0.35, source === 'claude' ? materials.woodLight : materials.outpostAccent, 0, 3.21, 0)
     for (const [index, width] of [2.7, 2.2, 2.5].entries()) box(group, width, 0.11, 0.05, frame, 0, 2.55 - index * 0.43, 0.23)
     scene.add(group)
-    boards.set(source, new THREE.Vector3(x, 3.55, z))
+    boards.set(source, new THREE.Vector3(x, 3.55, boardZ))
   }
   if (projects.some((project) => project.source === 'claude')) {
     addWell(scene, -districtX, -8.5)
@@ -635,9 +645,10 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
     const codex = source === 'codex'
     const side = codex ? 1 : -1
     const hall = projects.find((project) => project.source === source && project.kind === 'Commons')
-    const streetX = side * 6.8
+    const streetX = side * streetXOffset
     const entranceZs = [0]
-    if (hall || districtProjects.length) path(side * 5.4, 0, streetX, 0, codex)
+    path(side * 5.4, 0, streetX, 0, codex)
+    path(side * landingXOffset, 0, side * landingXOffset, boardZ + 1.2, codex)
     if (hall) {
       const hallX = side * districtX
       const place = addBuilding(scene, hall, -1, hallX, 0, seats, rigs, focusFrames)
@@ -686,7 +697,8 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   for (let index = 0; index < Math.min(210, Math.round(size * 2.5)); index++) {
     const x = (seeded(index * 2) - 0.5) * (size - 4)
     const z = (seeded(index * 2 + 1) - 0.5) * (size - 4)
-    if (Math.abs(x) < 5.0 || (Math.abs(x + districtX) < 5 && Math.abs(z) < 5) || (Math.abs(x - districtX) < 5 && Math.abs(z) < 5)) continue
+    if (Math.abs(x) < 5.0 || (Math.abs(Math.abs(x) - landingXOffset) < 5 && Math.abs(z - landingZ) < 5)
+      || (Math.abs(x + districtX) < 5 && Math.abs(z) < 5) || (Math.abs(x - districtX) < 5 && Math.abs(z) < 5)) continue
     if (positions.some(([bx, bz, clearanceZ]) => Math.abs(x - bx) < maxWidth / 2 + 2.4 && Math.abs(z - bz) < clearanceZ)) continue
     if (paths.some(([ax, az, bx, bz]) => {
       const dx = bx - ax, dz = bz - az
