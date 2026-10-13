@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import WorldScene, { type WorldControls } from './WorldScene'
+import WorldScene, { type PanKey, type WorldControls } from './WorldScene'
 import type { Project, Session, WorldSnapshot } from './worldData'
 import { groupCount } from './worldData'
 
@@ -12,6 +12,8 @@ function timeAgo(value: string | null): string {
   if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)} hours ago`
   return `${Math.floor(elapsed / 86_400_000)} days ago`
 }
+
+const panKeys = new Set<PanKey>(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
 
 export default function App() {
   const scene = useRef<WorldControls>(null)
@@ -43,15 +45,23 @@ export default function App() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { setSelectedId(null); setShowGuide(false) }
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+      if (event.target instanceof HTMLElement && (event.target.isContentEditable || event.target.matches('input, textarea, select, [role="textbox"]'))) return
+      if (panKeys.has(event.key as PanKey) && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault()
+        scene.current?.setPanKey(event.key as PanKey, true)
+        setFocusedId(null)
+        return
+      }
       if (event.key === '0') { scene.current?.fit(); setFocusedId(null) }
-      if (event.key === '+' || event.key === '=') scene.current?.zoom(1)
-      if (event.key === '-') scene.current?.zoom(-1)
       if (event.key.toLowerCase() === 'q') scene.current?.rotate(-1)
       if (event.key.toLowerCase() === 'e') scene.current?.rotate(1)
     }
+    const onKeyUp = (event: KeyboardEvent) => { if (panKeys.has(event.key as PanKey)) scene.current?.setPanKey(event.key as PanKey, false) }
+    const onBlur = () => scene.current?.clearPanKeys()
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKeyUp); window.removeEventListener('blur', onBlur) }
   }, [])
 
   const projects = snapshot?.projects || []
@@ -84,12 +94,12 @@ export default function App() {
     </div>
     {showGuide && <div className="guide-popover" role="dialog" aria-label="How to explore">
       <div className="popover-heading"><strong>Explore the village</strong><button type="button" aria-label="Close guide" onClick={() => setShowGuide(false)}>×</button></div>
-      <p>Drag to pan. Shift-drag or right-drag to rotate and tilt. Scroll or pinch to zoom. Cross the river between the Claude village and Codex outpost. Each bank has a hall for sessions without a project. Select a building name to move closer, then select a character for session details.</p>
-      <p className="guide-shortcuts">Keyboard: <kbd>0</kbd> fit all · <kbd>+</kbd> / <kbd>−</kbd> zoom · <kbd>Q</kbd> / <kbd>E</kbd> rotate · <kbd>Esc</kbd> close</p>
+      <p>Drag or use the arrow keys to pan. Shift-drag or right-drag to rotate and tilt. Scroll or pinch to zoom. Cross the river between the Claude village and Codex outpost. Each bank has a hall for sessions without a project. Select a building name to move closer, then select a character for session details.</p>
+      <p className="guide-shortcuts">Keyboard: <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> pan · <kbd>0</kbd> fit all · <kbd>Q</kbd> / <kbd>E</kbd> rotate · <kbd>Esc</kbd> close</p>
     </div>}
     <div className="world-intro"><span className="intro-line" />Two banks. One world. Every session has a place.</div>
     <div className="world-footer-left">
-      {focusedProject ? <div className="focus-caption"><span>YOU ARE VISITING</span><strong>{focusedProject.name}</strong><button type="button" onClick={fit}>See all places <span aria-hidden="true">↗</span></button></div> : <div className="map-caption"><span className="map-caption-icon">⌖</span><span>Drag to wander<br /><small>Shift-drag to rotate · Scroll to zoom</small></span></div>}
+      {focusedProject ? <div className="focus-caption"><span>YOU ARE VISITING</span><strong>{focusedProject.name}</strong><button type="button" onClick={fit}>See all places <span aria-hidden="true">↗</span></button></div> : <div className="map-caption"><span className="map-caption-icon">⌖</span><span>Drag or use arrow keys<br /><small>Shift-drag to rotate · Scroll to zoom</small></span></div>}
     </div>
     <div className="world-footer-center" aria-live="polite">{projects.length} {projects.length === 1 ? 'place' : 'places'} <span>·</span> {groupCount(projects)} {groupCount(projects) === 1 ? 'session' : 'sessions'}</div>
     <div className="map-controls" aria-label="Map controls">

@@ -2,7 +2,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import * as THREE from 'three'
 import type { Project } from './worldData'
 
-export type WorldControls = { fit: () => void; zoom: (direction: number) => void; rotate: (direction: number) => void; focusProject: (id: string) => void }
+export type PanKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
+export type WorldControls = { fit: () => void; zoom: (direction: number) => void; rotate: (direction: number) => void; focusProject: (id: string) => void; setPanKey: (key: PanKey, pressed: boolean) => void; clearPanKeys: () => void }
 type Props = { projects: Project[]; selectedId: string | null; focusedId: string | null; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void }
 type Place = { point: THREE.Vector3; width: number }
 type Routine = { desk: number; travel: number; linger: number; settle: number; period: number; phase: number; coffeePeriod: number; coffeeDuration: number; coffeePhase: number; strideSpeed: number }
@@ -15,7 +16,7 @@ type PersonRig = {
 type Runtime = {
   camera: THREE.OrthographicCamera; target: THREE.Vector3; desiredTarget: THREE.Vector3
   desiredZoom: number; overviewZoom: number; yaw: number; desiredYaw: number; pitch: number; desiredPitch: number; buildings: Map<string, Place>
-  seats: Map<string, THREE.Vector3>; rigs: Map<string, PersonRig>
+  seats: Map<string, THREE.Vector3>; rigs: Map<string, PersonRig>; focusFrames: Map<string, THREE.Group>; ripples: THREE.Mesh[]
 }
 
 const colors = {
@@ -58,6 +59,8 @@ const materials = {
   riverBed: mat(0x455f60), river: mat(0x4d8794, { transparent: true, opacity: 0.94 }),
   riverLight: mat(0x86b6b6, { emissive: 0x385e5d, emissiveIntensity: 0.12 }),
   riverBank: mat(0xb5a98a), reed: mat(0x809663),
+  plinth: mat(0x696c56), plinthTrim: mat(0xb8b397),
+  focus: new THREE.MeshBasicMaterial({ color: 0xffd48b }),
 }
 const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xffdc86, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
 
@@ -241,7 +244,7 @@ function buildingMetrics(project: Project): { commons: boolean; seatColumns: num
     depth: commons ? Math.max(10.5, tableRows * 3.45 + 3.4) : 7.5 }
 }
 
-function addBuilding(scene: THREE.Scene, project: Project, index: number, x: number, z: number, seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>): Place {
+function addBuilding(scene: THREE.Scene, project: Project, index: number, x: number, z: number, seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, focusFrames: Map<string, THREE.Group>): Place {
   const group = new THREE.Group()
   group.position.set(x, 0, z)
   scene.add(group)
@@ -257,9 +260,19 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
   const roof = codex ? materials.outpostRoof : materials.roof[commons ? 0 : index % materials.roof.length]
   const roofTrim = codex ? materials.outpostRoofTrim : timber
   const cobble = (variant: number) => codex ? (variant % 2 ? stone : stoneEdge) : materials.cobble[variant % 4]
+  const variant = hash(project.id) % 3
   // A front cutaway reveals the communal table; the stepped gable remains a cottage silhouette.
   box(group, width + 1.1, 0.37, depth + 1.1, stoneEdge, 0, 0.13, 0)
   box(group, width + 0.5, 0.18, depth + 0.6, wood, 0, 0.4, 0)
+  const focusFrame = new THREE.Group()
+  const frameX = width / 2 + 0.83, frameZ = depth / 2 + 0.83
+  group.add(focusFrame)
+  for (const side of [-1, 1]) {
+    box(focusFrame, width + 1.8, 0.12, 0.14, materials.focus, 0, 0.09, side * frameZ).castShadow = false
+    box(focusFrame, 0.14, 0.12, depth + 1.8, materials.focus, side * frameX, 0.09, 0).castShadow = false
+  }
+  focusFrame.visible = false
+  focusFrames.set(project.id, focusFrame)
   for (let plank = 0; plank < Math.floor(depth / 1.03); plank++) {
     const plankZ = -depth / 2 + 0.55 + plank * 1.03
     box(group, width - 0.42, 0.025, 0.045, plank % 2 ? timber : woodLight, 0, 0.505, plankZ).castShadow = false
@@ -307,9 +320,21 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
     box(group, width - course * courseWidth * 2, 0.34, 0.4, wallShade, 0, 4.11 + course * 0.39, -depth / 2 + 0.2)
   }
   box(group, 0.52, 0.37, roofDepth + 0.2, roofTrim, 0, 5.54, roofZ)
-  if (index % 2 === 0 && !codex) {
+  if (!commons && !codex && variant === 0) {
     box(group, 0.9, 1.5, 0.91, stoneEdge, width * 0.29, 5.38, -depth / 2 + 0.65)
     box(group, 1.12, 0.18, 1.12, cobble(index), width * 0.29, 6.15, -depth / 2 + 0.65)
+  }
+  if (!commons && !codex) {
+    const dormerX = variant === 1 ? width * 0.2 : -width * 0.19
+    box(group, 1.46, 0.94, 1.15, wallShade, dormerX, 5.59, roofZ + 0.43)
+    box(group, 1.7, 0.22, 1.37, roof, dormerX, 6.16, roofZ + 0.43)
+    box(group, 0.58, 0.48, 0.07, materials.glass, dormerX, 5.62, roofZ + 1.04).castShadow = false
+  }
+  if (!commons && codex) {
+    const mastX = variant === 1 ? -width * 0.28 : width * 0.28
+    box(group, 0.24, 1.84, 0.24, materials.outpostTimber, mastX, 6.13, roofZ - 0.55)
+    box(group, 1.12, 0.18, 0.19, materials.outpostAccent, mastX + 0.43, 6.72, roofZ - 0.55).castShadow = false
+    box(group, 0.71, 0.55, 0.09, materials.outpostBanner, mastX + 0.43, 6.32, roofZ - 0.51).castShadow = false
   }
   for (const windowX of [-width * 0.26, width * 0.26]) {
     box(group, 1.22, 0.93, 0.09, timber, windowX, 2.6, -depth / 2 + 0.42)
@@ -424,7 +449,8 @@ function addDarkTree(parent: THREE.Object3D, x: number, z: number, size = 1): vo
   box(tree, 0.92, 0.77, 0.92, materials.outpostGrass, 0, 3.75, 0)
 }
 
-function addRiver(scene: THREE.Scene, size: number): void {
+function addRiver(scene: THREE.Scene, size: number): THREE.Mesh[] {
+  const ripples: THREE.Mesh[] = []
   for (let section = 0; section < Math.ceil(size / 2.1); section++) {
     const z = -size / 2 + section * 2.1 + 1.05
     const x = Math.sin(z * 0.14) * 0.92 + Math.sin(z * 0.35) * 0.26
@@ -435,10 +461,16 @@ function addRiver(scene: THREE.Scene, size: number): void {
       if (section % 3 === 0) box(scene, 0.4, 0.17, 0.48, materials.cobble[(section + side + 5) % 4], x + side * 4.25, 0.1, z - 0.55)
     }
     if (section % 2 === 0) {
-      box(scene, 0.86, 0.018, 0.08, materials.riverLight, x - 1.1, 0.115, z + 0.31).castShadow = false
-      box(scene, 0.46, 0.018, 0.07, materials.riverLight, x + 1.0, 0.115, z - 0.38).castShadow = false
+      for (const [offset, width, row] of [[-1.1, 0.86, 0.31], [1.0, 0.46, -0.38]]) {
+        const ripple = box(scene, width, 0.018, 0.08, materials.riverLight, x + offset, 0.115, z + row)
+        ripple.castShadow = false
+        ripple.userData.baseX = ripple.position.x
+        ripple.userData.phase = section * 0.71 + offset
+        ripples.push(ripple)
+      }
     }
   }
+  return ripples
 }
 
 function addBridge(scene: THREE.Scene): void {
@@ -454,18 +486,29 @@ function addBridge(scene: THREE.Scene): void {
   box(scene, 1.0, 0.15, 3.9, materials.outpostStone, 5.0, 0.12, 0)
 }
 
-function addPath(scene: THREE.Scene, fromX: number, fromZ: number, toX: number, toZ: number, codex: boolean): void {
+type PathStone = { x: number; z: number; width: number; depth: number }
+
+function addPath(scene: THREE.Scene, fromX: number, fromZ: number, toX: number, toZ: number, codex: boolean, occupied: PathStone[]): void {
   const dx = toX - fromX, dz = toZ - fromZ
-  const steps = Math.max(2, Math.round(Math.hypot(dx, dz) / 1.1))
+  const length = Math.hypot(dx, dz)
+  if (length === 0) return
+  const steps = Math.max(2, Math.round(length / 1.1))
   const angle = Math.atan2(dx, dz)
+  const base = box(scene, 2.27, 0.07, length + 0.12, codex ? materials.outpostStoneDark : materials.path, (fromX + toX) / 2, 0.025, (fromZ + toZ) / 2)
+  base.rotation.y = angle
   for (let step = 0; step < steps; step++) {
     const t = (step + 0.5) / steps
     const x = fromX + dx * t, z = fromZ + dz * t
-    const tile = box(scene, 2.27, 0.07, 1.14, codex ? materials.outpostStoneDark : materials.path, x, 0.025, z)
-    tile.rotation.y = angle
     for (const side of [-1, 0, 1]) {
-      const stone = box(scene, 0.61, 0.075, 0.69, codex ? (step % 3 ? materials.outpostStone : materials.outpostWood) : materials.cobble[(step + side + 4) % 4], x + Math.cos(angle) * side * 0.65, 0.077, z - Math.sin(angle) * side * 0.65)
+      const stoneX = x + Math.cos(angle) * side * 0.65
+      const stoneZ = z - Math.sin(angle) * side * 0.65
+      // Paths follow X or Z, so these are the stones' world-space footprints.
+      const width = Math.abs(dx) > Math.abs(dz) ? 0.69 : 0.61
+      const depth = Math.abs(dx) > Math.abs(dz) ? 0.61 : 0.69
+      if (occupied.some((other) => Math.abs(stoneX - other.x) < (width + other.width) / 2 - 0.01 && Math.abs(stoneZ - other.z) < (depth + other.depth) / 2 - 0.01)) continue
+      const stone = box(scene, 0.61, 0.075, 0.69, codex ? (step % 3 ? materials.outpostStone : materials.outpostWood) : materials.cobble[(step + side + 4) % 4], stoneX, 0.077, stoneZ)
       stone.rotation.y = angle
+      occupied.push({ x: stoneX, z: stoneZ, width, depth })
     }
   }
 }
@@ -525,17 +568,29 @@ function addBrazier(scene: THREE.Scene, x: number, z: number): void {
   box(scene, 0.12, 0.26, 0.13, materials.ember, x + 0.14, 1.19, z + 0.07).castShadow = false
 }
 
-function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, buildings: Map<string, Place>): { size: number } {
+function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, buildings: Map<string, Place>, focusFrames: Map<string, THREE.Group>): { size: number; ripples: THREE.Mesh[] } {
   const maxWidth = Math.max(9.4, ...projects.map((project) => buildingMetrics(project).width))
   const claudeProjects = projects.filter((project) => project.source !== 'codex' && project.kind !== 'Commons')
   const codexProjects = projects.filter((project) => project.source === 'codex' && project.kind !== 'Commons')
-  const maxColumns = Math.max(1, Math.ceil(Math.max(claudeProjects.length, codexProjects.length) / 4))
-  const size = 88 + (maxColumns - 1) * (maxWidth + 7) * 2
+  const districtX = Math.max(19.5, maxWidth / 2 + 13)
+  const rowZ = [-22, 18, -43, 43]
+  const rowX = { claude: [-5, 6, 16, -5], codex: [6, -5, 16, -5] }
+  const site = (source: 'claude' | 'codex', index: number) => {
+    const column = Math.floor(index / 4)
+    const row = index % 4
+    return { x: (source === 'codex' ? 1 : -1) * (districtX + column * (maxWidth + 9) + rowX[source][row]), z: rowZ[row] }
+  }
+  const sites = [...claudeProjects.map((project, index) => ({ project, ...site('claude', index) })),
+    ...codexProjects.map((project, index) => ({ project, ...site('codex', index) }))]
+  const farthestX = Math.max(districtX + maxWidth / 2 + 4, ...sites.map(({ project, x }) => Math.abs(x) + buildingMetrics(project).width / 2 + 4))
+  const farthestZ = Math.max(12, ...sites.map(({ project, z }) => Math.abs(z) + buildingMetrics(project).depth / 2 + 7))
+  const size = Math.max(64, Math.ceil(Math.max(farthestX, farthestZ) / 2) * 4)
+  box(scene, size + 1.8, 0.27, size + 1.8, materials.plinth, 0, -0.91, 0)
+  box(scene, size + 0.92, 0.2, size + 0.92, materials.plinthTrim, 0, -0.68, 0)
   box(scene, size, 0.7, size, materials.ground, 0, -0.42, 0)
   box(scene, size / 2 - 3.9, 0.045, size, materials.outpostGround, size / 4 + 1.95, -0.025, 0)
-  addRiver(scene, size)
+  const ripples = addRiver(scene, size)
   addBridge(scene)
-  const districtX = 19.5
   if (projects.some((project) => project.source === 'claude')) {
     addWell(scene, -districtX, -8.5)
     for (const z of [-4.2, 4.2]) addLamp(scene, -6.7, z)
@@ -551,20 +606,21 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   }
   const positions: Array<[number, number, number]> = []
   const paths: Array<[number, number, number, number]> = []
-  const path = (fromX: number, fromZ: number, toX: number, toZ: number, codex: boolean) => {
-    addPath(scene, fromX, fromZ, toX, toZ, codex)
+  const pathSegments: Array<{ fromX: number; fromZ: number; toX: number; toZ: number; codex: boolean; street: boolean }> = []
+  const path = (fromX: number, fromZ: number, toX: number, toZ: number, codex: boolean, street = false) => {
+    pathSegments.push({ fromX, fromZ, toX, toZ, codex, street })
     paths.push([fromX, fromZ, toX, toZ])
   }
   for (const [source, districtProjects] of [['claude', claudeProjects], ['codex', codexProjects]] as const) {
     const codex = source === 'codex'
     const side = codex ? 1 : -1
     const hall = projects.find((project) => project.source === source && project.kind === 'Commons')
-    const streetX = side * (districtX - (hall ? buildingMetrics(hall).width : maxWidth) / 2 - 3.2)
+    const streetX = side * 6.8
     const entranceZs = [0]
     if (hall || districtProjects.length) path(side * 5.4, 0, streetX, 0, codex)
     if (hall) {
       const hallX = side * districtX
-      const place = addBuilding(scene, hall, -1, hallX, 0, seats, rigs)
+      const place = addBuilding(scene, hall, -1, hallX, 0, seats, rigs, focusFrames)
       buildings.set(hall.id, place)
       positions.push([hallX, 0, buildingMetrics(hall).depth / 2 + 2.4])
       const entranceZ = buildingMetrics(hall).depth / 2 + 1.02
@@ -579,12 +635,9 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
       }
     }
     districtProjects.forEach((project, index) => {
-      const column = Math.floor(index / 4)
-      const row = index % 4
-      const z = row < 2 ? (row === 0 ? -19 : 19) : (row === 2 ? -35 : 35)
-      const x = side * (districtX + column * (maxWidth + 7))
+      const { x, z } = site(source, index)
       positions.push([x, z, 6])
-      const place = addBuilding(scene, project, index, x, z, seats, rigs)
+      const place = addBuilding(scene, project, index, x, z, seats, rigs, focusFrames)
       buildings.set(project.id, place)
       const entranceZ = z + buildingMetrics(project).depth / 2 + 1.02
       entranceZs.push(entranceZ)
@@ -602,7 +655,12 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
         addLamp(scene, x - place.width / 2 - 0.72, z + 4.6)
       }
     })
-    if (entranceZs.length > 1) path(streetX, Math.min(...entranceZs), streetX, Math.max(...entranceZs), codex)
+    if (entranceZs.length > 1) path(streetX, Math.min(...entranceZs), streetX, Math.max(...entranceZs), codex, true)
+  }
+  const occupiedPathStones: PathStone[] = []
+  // Keep the long streets continuous where shorter paths join them.
+  for (const segment of pathSegments.sort((a, b) => Number(b.street) - Number(a.street))) {
+    addPath(scene, segment.fromX, segment.fromZ, segment.toX, segment.toZ, segment.codex, occupiedPathStones)
   }
   const seeded = (index: number) => { const n = Math.sin(index * 72.13 + 3.2) * 43758.5453; return n - Math.floor(n) }
   for (let index = 0; index < Math.min(210, Math.round(size * 2.5)); index++) {
@@ -627,7 +685,7 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
       if (index % 5 === 0) box(scene, 0.07, 0.42, 0.07, materials.reed, x + 0.21, 0.21, z)
     }
   }
-  return { size }
+  return { size, ripples }
 }
 
 const cameraOffset = new THREE.Vector3(29, 34, 43)
@@ -713,6 +771,7 @@ function animatePerson(rig: PersonRig, time: number, reducedMotion: boolean): vo
 const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, focusedId, onSelectSession, onFocusProject }, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<Runtime | null>(null)
+  const panKeysRef = useRef(new Set<PanKey>())
   const selectedRef = useRef(selectedId)
   selectedRef.current = selectedId
   const focusedRef = useRef(focusedId)
@@ -727,6 +786,8 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     zoom(direction) { const runtime = runtimeRef.current; if (runtime) runtime.desiredZoom = THREE.MathUtils.clamp(runtime.desiredZoom * (direction > 0 ? 1.26 : 1 / 1.26), runtime.overviewZoom * 0.75, 4.2) },
     rotate(direction) { const runtime = runtimeRef.current; if (runtime) runtime.desiredYaw += direction * Math.PI / 8 },
     focusProject(id) { const runtime = runtimeRef.current; const place = runtime?.buildings.get(id); if (runtime && place) { runtime.desiredTarget.set(place.point.x, 0.5, place.point.z + 2.4); runtime.desiredZoom = Math.max(runtime.overviewZoom * 1.65, Math.min(2.1, 18 / place.width)) } },
+    setPanKey(key, pressed) { if (pressed) panKeysRef.current.add(key); else panKeysRef.current.delete(key) },
+    clearPanKeys() { panKeysRef.current.clear() },
   }), [])
 
   useEffect(() => {
@@ -752,18 +813,21 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     sun.position.set(-20, 37, 27)
     sun.castShadow = true
     sun.shadow.mapSize.set(2048, 2048)
-    sun.shadow.camera.left = -95; sun.shadow.camera.right = 95
-    sun.shadow.camera.top = 95; sun.shadow.camera.bottom = -95
     sun.shadow.normalBias = 0.018
     scene.add(sun)
     const buildings = new Map<string, Place>()
     const seats = new Map<string, THREE.Vector3>()
     const rigs = new Map<string, PersonRig>()
+    const focusFrames = new Map<string, THREE.Group>()
     const sessionProjects = new Map(projects.flatMap((project) => project.sessions.map((session): [string, string] => [session.id, project.id])))
-    const { size } = addVillage(scene, projects, seats, rigs, buildings)
+    const { size, ripples } = addVillage(scene, projects, seats, rigs, buildings, focusFrames)
+    const shadowExtent = Math.max(48, size * 0.74)
+    sun.shadow.camera.left = -shadowExtent; sun.shadow.camera.right = shadowExtent
+    sun.shadow.camera.top = shadowExtent; sun.shadow.camera.bottom = -shadowExtent
+    sun.shadow.camera.updateProjectionMatrix()
     const target = new THREE.Vector3()
     const runtime: Runtime = { camera, target, desiredTarget: target.clone(), desiredZoom: 1, overviewZoom: 1,
-      yaw: initialYaw, desiredYaw: initialYaw, pitch: initialPitch, desiredPitch: initialPitch, buildings, seats, rigs }
+      yaw: initialYaw, desiredYaw: initialYaw, pitch: initialPitch, desiredPitch: initialPitch, buildings, seats, rigs, focusFrames, ripples }
     runtimeRef.current = runtime
     camera.position.copy(cameraOffset)
     camera.lookAt(target)
@@ -839,7 +903,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       camera.left = -20 * aspect; camera.right = 20 * aspect
       camera.top = 20; camera.bottom = -20
       const previousOverview = runtime.overviewZoom
-      runtime.overviewZoom = Math.min(1.22, 36 / size, 37 * aspect / size)
+      runtime.overviewZoom = Math.min(1.22, 38 / size, 28 * aspect / size)
       if (runtime.desiredZoom < runtime.overviewZoom * 0.75) runtime.desiredZoom = runtime.overviewZoom
       if (firstSize || Math.abs(runtime.desiredZoom - previousOverview) < 0.001) runtime.desiredZoom = runtime.overviewZoom
       if (firstSize) { camera.zoom = runtime.overviewZoom; firstSize = false }
@@ -852,8 +916,21 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     const orbitOffset = new THREE.Vector3()
     let frame = 0
+    let previousFrame = performance.now()
     const render = () => {
       frame = requestAnimationFrame(render)
+      const now = performance.now()
+      const delta = Math.min((now - previousFrame) / 1000, 0.05)
+      previousFrame = now
+      const keys = panKeysRef.current
+      const horizontal = Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft'))
+      const vertical = Number(keys.has('ArrowUp')) - Number(keys.has('ArrowDown'))
+      if (horizontal || vertical) {
+        const distance = 9600 * delta / (Math.max(host.clientHeight, 1) * camera.zoom * Math.hypot(horizontal, vertical))
+        const sine = Math.sin(runtime.yaw), cosine = Math.cos(runtime.yaw)
+        runtime.desiredTarget.x += (horizontal * cosine - vertical * sine) * distance
+        runtime.desiredTarget.z += (-horizontal * sine - vertical * cosine) * distance
+      }
       runtime.target.lerp(runtime.desiredTarget, reducedMotion.matches ? 1 : 0.095)
       runtime.yaw += (runtime.desiredYaw - runtime.yaw) * (reducedMotion.matches ? 1 : 0.12)
       runtime.pitch += (runtime.desiredPitch - runtime.pitch) * (reducedMotion.matches ? 1 : 0.12)
@@ -863,8 +940,9 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       camera.lookAt(runtime.target)
       camera.zoom += (runtime.desiredZoom - camera.zoom) * (reducedMotion.matches ? 1 : 0.1)
       camera.updateProjectionMatrix()
-      const t = performance.now() / 1000
+      const t = now / 1000
       rigs.forEach((rig) => animatePerson(rig, t, reducedMotion.matches))
+      for (const ripple of ripples) ripple.position.x = ripple.userData.baseX + (reducedMotion.matches ? 0 : Math.sin(t * 0.7 + ripple.userData.phase) * 0.17)
       const visibleLabels: { label: HTMLElement; kind: string; x: number; y: number }[] = []
       for (const label of host.querySelectorAll<HTMLElement>('[data-world-label]')) {
         const kind = label.dataset.worldLabel
@@ -910,6 +988,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     render()
     return () => {
       cancelAnimationFrame(frame)
+      panKeysRef.current.clear()
       observer.disconnect()
       renderer.domElement.removeEventListener('pointerdown', down)
       renderer.domElement.removeEventListener('pointermove', move)
@@ -933,16 +1012,20 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
 
   useEffect(() => { runtimeRef.current?.rigs.forEach((rig, id) => { rig.ring.visible = id === selectedId }) }, [selectedId, signature])
 
+  const selectedProjectId = projects.find((project) => project.sessions.some((session) => session.id === selectedId))?.id
+  const activeProjectId = focusedId || selectedProjectId
+  useEffect(() => { runtimeRef.current?.focusFrames.forEach((frame, id) => { frame.visible = id === activeProjectId }) }, [activeProjectId, signature])
+
   return <div className="world-host" ref={hostRef} aria-label="Interactive village map">
     {unavailable && <div className="world-unavailable">This browser cannot start the 3D village. Try enabling WebGL.</div>}
     <div className="world-label-layer">
-      {projects.map((project) => <button className={`building-label ${project.source === 'codex' ? 'codex' : ''} ${project.kind === 'Commons' ? 'commons' : ''}`} key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => callbacksRef.current.onFocusProject(project.id)} type="button">
+      {projects.map((project) => <button className={`building-label ${project.source === 'codex' ? 'codex' : ''} ${project.kind === 'Commons' ? 'commons' : ''} ${project.id === activeProjectId ? 'is-focused' : ''}`} key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => callbacksRef.current.onFocusProject(project.id)} type="button">
         <span className="building-label-kind">{project.source} · {project.kind}</span><strong>{project.name}</strong><small>{project.sessions.length} {project.sessions.length === 1 ? 'session' : 'sessions'}</small>
       </button>)}
       {projects.flatMap((project) => project.sessions.map((session) => <button className={`session-label ${project.source === 'codex' ? 'codex' : ''} ${selectedId === session.id ? 'is-selected' : ''}`} key={session.id} data-world-label="session" data-world-id={session.id} onClick={() => callbacksRef.current.onSelectSession(session.id)} type="button" title={session.name}>
         <span className={`session-status ${session.status}`} />{session.name}
       </button>))}
-      {projects.flatMap((project) => project.sessions.map((session) => <span className="coffee-signal" key={`coffee-${session.id}`} data-world-label="coffee" data-world-id={session.id} aria-hidden="true">☕ coffee</span>))}
+      {projects.flatMap((project) => project.sessions.map((session) => <span className="coffee-signal" key={`coffee-${session.id}`} data-world-label="coffee" data-world-id={session.id} aria-hidden="true">☕</span>))}
     </div>
   </div>
 })
