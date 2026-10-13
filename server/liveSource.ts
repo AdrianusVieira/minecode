@@ -5,6 +5,7 @@ import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
 import type { Project, Session, WorldSnapshot } from '../src/worldData.js'
 import type { TelemetryStores } from './telemetryStore.js'
+import { hasCodexWork } from './codexSessionEvidence.js'
 
 const execFileAsync = promisify(execFile)
 const DAY = 86_400_000
@@ -132,7 +133,8 @@ async function codexMetadata(ids: Set<string>): Promise<MetadataMap> {
 export function mapSessions(source: Source, raw: RawSession[], days: number, now: number, metadata: MetadataMap = new Map()): { projects: Project[]; notices: string[] } {
   const notices: string[] = []
   const cutoff = now - days * DAY
-  const filtered = raw.filter((item) => timestamp(item.lastSeen) !== null && (item.lastSeen as number) >= cutoff)
+  const filtered = raw.filter((item) => timestamp(item.lastSeen) !== null && (item.lastSeen as number) >= cutoff
+    && (source !== 'codex' || hasCodexWork(item)))
     .sort((a, b) => (b.lastSeen as number) - (a.lastSeen as number))
   if (filtered.length > MAX_PER_SOURCE) notices.push(`Showing the ${MAX_PER_SOURCE} most recent ${source === 'codex' ? 'Codex' : 'Claude'} sessions in this period.`)
   const records: LiveRecord[] = filtered.slice(0, MAX_PER_SOURCE).map((item) => {

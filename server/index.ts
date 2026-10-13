@@ -33,7 +33,7 @@ function sendJson(response: ServerResponse, data: unknown, status = 200): void {
 
 function periodFrom(url: URL): TelemetryPeriod | null {
   const raw = url.searchParams.get('days') || '30'
-  return ['7', '30', '90', 'all'].includes(raw) ? raw === 'all' ? 'all' : Number(raw) as 7 | 30 | 90 : null
+  return ['1', '2', '7', '30', '90', 'all'].includes(raw) ? raw === 'all' ? 'all' : Number(raw) as 1 | 2 | 7 | 30 | 90 : null
 }
 
 const server = createServer(async (request, response) => {
@@ -53,7 +53,7 @@ const server = createServer(async (request, response) => {
   const telemetryMatch = /^\/api\/telemetry\/(claude|codex)$/.exec(pathname)
   if (telemetryMatch) {
     const period = periodFrom(url)
-    if (period === null) { sendJson(response, { error: 'days must be 7, 30, 90, or all' }, 400); return }
+    if (period === null) { sendJson(response, { error: 'days must be 1, 2, 7, 30, 90, or all' }, 400); return }
     try {
       sendJson(response, getTelemetrySummary(telemetryMatch[1] as 'claude' | 'codex', period, stores))
     } catch (error) {
@@ -64,7 +64,7 @@ const server = createServer(async (request, response) => {
   }
   if (pathname === '/api/telemetry/claude/accounts') {
     const period = periodFrom(url)
-    if (period === null) { sendJson(response, { error: 'days must be 7, 30, 90, or all' }, 400); return }
+    if (period === null) { sendJson(response, { error: 'days must be 1, 2, 7, 30, 90, or all' }, 400); return }
     try { sendJson(response, getClaudeAccounts(period, stores)) }
     catch (error) { console.error('Account overview failed:', error); sendJson(response, { error: 'Account data is unavailable.' }, 503) }
     return
@@ -72,7 +72,7 @@ const server = createServer(async (request, response) => {
   const sessionMatch = /^\/api\/telemetry\/(claude|codex)\/sessions\/([^/]+?)(\/events)?$/.exec(pathname)
   if (sessionMatch) {
     const period = periodFrom(url)
-    if (period === null) { sendJson(response, { error: 'days must be 7, 30, 90, or all' }, 400); return }
+    if (period === null) { sendJson(response, { error: 'days must be 1, 2, 7, 30, 90, or all' }, 400); return }
     let id: string
     try { id = decodeURIComponent(sessionMatch[2]) }
     catch { sendJson(response, { error: 'Invalid session ID' }, 400); return }

@@ -11,6 +11,7 @@ import { getTelemetrySummary } from './telemetrySummary.js'
 import { importHistory } from './telemetryStore.js'
 import { getClaudeAccounts, getSessionEvents, getSessionView } from './telemetryViews.js'
 import { getWorldSnapshot } from './worldSource.js'
+import { mapSessions } from './liveSource.js'
 
 const attribute = (key: string, value: string) => ({ key, value: { stringValue: value } })
 const close = (server: Server) => new Promise<void>((resolve) => server.close(() => resolve()))
@@ -92,4 +93,29 @@ test('first-run import copies a consistent legacy SQLite history once', async ()
     source.close()
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('Codex prompt history distinguishes a continued chat from a signal-only ID', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'minecode-codex-evidence-'))
+  const store = new CodexStore(join(dir, 'codex.sqlite3'))
+  try {
+    const now = Date.now()
+    const log = (id: string, name: string, timestamp: number, extra: ReturnType<typeof attribute>[] = []) => ({
+      timeUnixNano: String(BigInt(timestamp) * 1_000_000n), body: { stringValue: `codex.${name}` },
+      attributes: [attribute('conversation.id', id), ...extra],
+    })
+    store.ingestLogs({ resourceLogs: [{ scopeLogs: [{ logRecords: [
+      log('continued', 'user_prompt', now - 4 * 86_400_000, [attribute('prompt', 'Earlier request')]),
+      log('continued', 'sse_event', now, [attribute('event.kind', 'response.completed'), attribute('total_token_count', '7')]),
+      log('signal-only', 'conversation_starts', now),
+      log('signal-only', 'sse_event', now + 1, [attribute('event.kind', 'response.completed'), attribute('total_token_count', '5')]),
+    ] }] }] })
+    const recent = store.sessions(2).sessions
+    assert.equal(recent.length, 2)
+    assert.equal(recent.find((session) => session.id === 'continued')?.hasUserPrompt, true)
+    assert.equal(recent.find((session) => session.id === 'continued')?.prompts, 0)
+    assert.equal(recent.find((session) => session.id === 'signal-only')?.hasUserPrompt, false)
+    const world = mapSessions('codex', recent, 2, now + 2)
+    assert.deepEqual(world.projects.flatMap((project) => project.sessions.map((session) => session.externalId)), ['continued'])
+  } finally { store.close(); rmSync(dir, { recursive: true, force: true }) }
 })

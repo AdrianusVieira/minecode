@@ -1,11 +1,12 @@
 export type TelemetrySource = 'claude' | 'codex'
-export type TelemetryPeriod = 7 | 30 | 90 | 'all'
+export type TelemetryPeriod = 1 | 2 | 7 | 30 | 90 | 'all'
 
 export type TelemetrySummary = {
   source: TelemetrySource
   period: TelemetryPeriod
   updatedAt: string
   conversations: number
+  signalOnlyIds: number
   prompts: number
   tokens: number | null
   apiRequests: number

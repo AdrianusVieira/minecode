@@ -5,6 +5,7 @@ import { groupCount } from './worldData'
 import TelemetryPanel from './TelemetryPanel'
 import SessionTelemetryPanel from './SessionTelemetryPanel'
 import PanelDisplayControls, { type PanelTheme } from './PanelDisplayControls'
+import PanelResizeHandle from './PanelResizeHandle'
 import type { TelemetrySource } from './telemetryData'
 
 function timeAgo(value: string | null): string {
@@ -35,7 +36,7 @@ export default function App() {
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [showGuide, setShowGuide] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [days, setDays] = useState(2)
+  const [days, setDays] = useState<1 | 2 | 7 | 30>(2)
   const [telemetrySource, setTelemetrySource] = useState<TelemetrySource | null>(null)
   const [panelTheme, setPanelTheme] = useState<PanelTheme>(savedTheme)
   const [panelWidth, setPanelWidth] = useState(savedWidth)
@@ -100,8 +101,9 @@ export default function App() {
   }
 
   const sessionFocusOpen = !!(selected && snapshot?.source === 'telemetry')
-  const displayControls = <PanelDisplayControls theme={panelTheme} width={panelWidth} onThemeChange={setPanelTheme} onWidthChange={setPanelWidth} />
-  return <main className={`app-shell ${sessionFocusOpen ? 'session-focus-open' : ''}`} style={{ '--panel-width': `clamp(480px, ${panelWidth}vw, 100vw)` } as React.CSSProperties}>
+  const displayControls = <PanelDisplayControls theme={panelTheme} onThemeChange={setPanelTheme} />
+  const resizeHandle = <PanelResizeHandle width={panelWidth} onWidthChange={setPanelWidth} />
+  return <main className={`app-shell ${sessionFocusOpen ? 'session-focus-open' : ''}`} style={{ '--panel-width': `${panelWidth}vw` } as React.CSSProperties}>
     {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId} focusedId={focusedId} lockSessionFocus={sessionFocusOpen} onSelectSession={setSelectedId} onFocusProject={focusProject} onOpenTelemetry={(source) => { setSelectedId(null); setShowGuide(false); setTelemetrySource(source) }} />}
     {!snapshot && <div className="loading-world"><div className="loading-mark">✦</div><p>{error || 'Preparing the village…'}</p><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
     <header className="app-header">
@@ -110,7 +112,7 @@ export default function App() {
     </header>
     <div className="top-actions">
       {snapshot && <span className="source-badge" title={snapshot.notices?.join(' ')}><span className="source-dot" />{snapshot.source === 'sample' ? 'Sample village' : snapshot.source === 'telemetry' ? 'Live telemetry' : 'Local file'}{snapshot.notices?.length ? ' ·' : ''}</span>}
-      {snapshot?.source === 'telemetry' && <label className="period-control"><span>Show</span><select aria-label="Session time range" value={days} onChange={(event) => { setDays(Number(event.target.value)); setSelectedId(null); setFocusedId(null) }}><option value={1}>24h</option><option value={2}>48h</option><option value={7}>7d</option><option value={30}>30d</option></select></label>}
+      {snapshot?.source === 'telemetry' && <label className="period-control"><span>Show</span><select aria-label="Session time range" value={days} onChange={(event) => { setDays(Number(event.target.value) as 1 | 2 | 7 | 30); setSelectedId(null); setFocusedId(null) }}><option value={1}>24h</option><option value={2}>48h</option><option value={7}>7d</option><option value={30}>30d</option></select></label>}
       <button type="button" className="round-action" aria-label="How to explore" title="How to explore" onClick={() => setShowGuide((value) => !value)}>?</button>
     </div>
     {showGuide && <div className="guide-popover" role="dialog" aria-label="How to explore">
@@ -142,8 +144,8 @@ export default function App() {
       {snapshot?.source !== 'sample' && <button type="button" className="copy-button" onClick={() => void copyId()}>{copied ? 'Copied session ID' : 'Copy session ID'} <span aria-hidden="true">↗</span></button>}
       <p className="panel-note">Activity is the latest supplied signal. It does not confirm that a session is currently running.</p>
     </aside>}
-    {selected && snapshot?.source === 'telemetry' && <SessionTelemetryPanel key={`${selected.project.source}:${selected.session.id}`} session={selected.session} project={selected.project} theme={panelTheme} displayControls={displayControls} onClose={() => setSelectedId(null)} />}
-    {telemetrySource && <TelemetryPanel key={telemetrySource} source={telemetrySource} theme={panelTheme} displayControls={displayControls} onClose={() => setTelemetrySource(null)} />}
+    {selected && snapshot?.source === 'telemetry' && <SessionTelemetryPanel key={`${selected.project.source}:${selected.session.id}`} session={selected.session} project={selected.project} initialPeriod={days} theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} onClose={() => setSelectedId(null)} />}
+    {telemetrySource && <TelemetryPanel key={telemetrySource} source={telemetrySource} initialPeriod={days} theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} onClose={() => setTelemetrySource(null)} />}
     {error && snapshot && <div className="data-warning" role="status">Showing the last village snapshot. {error}</div>}
   </main>
 }

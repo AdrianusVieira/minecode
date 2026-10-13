@@ -1,5 +1,6 @@
 import type { TelemetryPeriod, TelemetrySource, TelemetrySummary } from '../src/telemetryData.js'
 import type { TelemetryStores } from './telemetryStore.js'
+import { hasCodexWork } from './codexSessionEvidence.js'
 
 type Raw = Record<string, unknown>
 const object = (value: unknown): Raw => value && typeof value === 'object' && !Array.isArray(value) ? value as Raw : {}
@@ -45,12 +46,14 @@ export function summarizeTelemetry(source: TelemetrySource, period: TelemetryPer
   const sessions = object(payload).sessions
   if (!Array.isArray(sessions)) throw new Error('Telemetry response has no sessions array')
   const rows = sessions.map(object)
+  const conversationRows = source === 'codex' ? rows.filter(hasCodexWork) : rows
   const sum = (key: string) => rows.reduce((total, row) => total + count(row[key]), 0)
   const chart = timeline(rows, source)
   const costs = rows.map((row) => optional(row.estimatedCostUsd)).filter((value): value is number => value !== null)
   const active = rows.flatMap((row) => [optional(row.activeUserSeconds), optional(row.activeCliSeconds)]).filter((value): value is number => value !== null)
   return {
-    source, period, updatedAt: new Date().toISOString(), conversations: rows.length, prompts: sum('prompts'),
+    source, period, updatedAt: new Date().toISOString(), conversations: conversationRows.length,
+    signalOnlyIds: rows.length - conversationRows.length, prompts: sum('prompts'),
     tokens: source === 'claude' ? sum('inputTokens') + sum('outputTokens') + sum('cacheReadTokens') + sum('cacheCreationTokens')
       : rows.some((row) => optional(row.observedTokens) !== null) ? sum('observedTokens') : null,
     apiRequests: sum('apiRequests'), errors: sum('errors'), toolResults: source === 'codex' ? sum('toolCalls') : null,

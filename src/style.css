@@ -125,6 +125,10 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .data-warning { right: 30px; bottom: 80px; max-width: 300px; padding: 10px 12px; border: 1px solid #b39c6d; border-radius: 4px; background: #fbf3d9; color: #69583e; font-size: 11px; }
 .telemetry-scrim { position: absolute; inset: 0; z-index: 7; border: 0; background: #16211f72; cursor: default; }
 .session-focus-open .telemetry-scrim { background: #16211f48; }
+.panel-resize-handle { position: fixed; z-index: 9; top: 0; bottom: 0; left: calc(100% - var(--panel-width) - 6px); width: 12px; cursor: col-resize; touch-action: none; user-select: none; }
+.panel-resize-handle::after { content: ''; position: absolute; top: calc(50% - 29px); left: 5px; width: 2px; height: 58px; border-radius: 2px; background: var(--telemetry-accent); opacity: .75; }
+.panel-resize-handle:hover::after, .panel-resize-handle:focus-visible::after { width: 3px; opacity: 1; }
+.panel-resize-handle:focus-visible { outline: 2px solid var(--telemetry-accent); outline-offset: -2px; }
 .telemetry-panel {
   --panel-bg: #1d2425; --panel-card: #272f30; --panel-inset: #202829; --panel-text: #e7e8e2;
   --panel-muted: #aab5b3; --panel-subtle: #8d9998; --panel-border: #3d494a; --panel-control: #303b3d;
@@ -144,14 +148,10 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 }
 .telemetry-panel.light.claude { --telemetry-accent: #256693; }
 .telemetry-panel.light.codex { --telemetry-accent: #267467; }
-.panel-display-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 14px; margin-top: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--panel-border); }
+.panel-display-controls { display: flex; align-items: center; justify-content: flex-end; margin-top: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--panel-border); }
 .panel-theme-button { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid var(--panel-control-border); border-radius: 4px; background: var(--panel-control); color: var(--panel-text); font-size: 11px; font-weight: 700; white-space: nowrap; }
 .panel-theme-button:hover { background: var(--panel-control-hover); }
 .panel-theme-button span { font-size: 16px; line-height: 1; }
-.panel-width-control { display: flex; align-items: center; gap: 9px; color: var(--panel-muted); font-size: 11px; font-weight: 700; white-space: nowrap; }
-.panel-width-control strong { color: var(--panel-text); }
-.panel-width-control input { width: 100px; accent-color: var(--telemetry-accent); cursor: pointer; }
-.panel-width-control input:focus-visible { outline: 2px solid var(--telemetry-accent); outline-offset: 3px; }
 .telemetry-panel-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
 .telemetry-panel-head h2 { margin: 5px 0 5px; font-family: 'Fraunces', Georgia, serif; font-size: clamp(27px, 3vw, 40px); font-weight: 500; }
 .telemetry-panel-head p:last-child { margin: 0; color: var(--panel-muted); font-size: 13px; }
@@ -230,9 +230,13 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .session-tools div { padding: 11px; border: 1px solid var(--panel-border); border-radius: 4px; }
 .session-tools strong, .session-tools span { display: block; font-size: 11px; }
 .session-tools span { margin-top: 5px; color: var(--panel-subtle); }
+@media (min-width: 701px) and (max-width: 980px) {
+  .telemetry-metrics, .account-breakdown, .session-breakdown { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .session-detail-columns { grid-template-columns: 1fr; }
+}
 @media (max-width: 700px) {
   .session-focus-open .world-host { right: 0; }
-  .panel-width-control { display: none; }
+  .panel-resize-handle { display: none; }
   .app-header { top: 14px; left: 14px; padding: 8px 10px 8px 8px; gap: 8px; }
   .brand-mark { width: 35px; height: 35px; transform: scale(.76); transform-origin: top left; margin-right: -8px; margin-bottom: -8px; }
   .brand-eyebrow { font-size: 7px; }

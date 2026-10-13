@@ -37,6 +37,17 @@ test('summarizes Codex observed counts without inventing a cost or missing token
   assert.deepEqual(result.timeline, [])
 })
 
+test('counts worked Codex conversations while retaining signal-only token observations', () => {
+  const result = summarizeTelemetry('codex', 7, { sessions: [
+    { id: 'worked', hasUserPrompt: true, prompts: 1, completedResponses: 1, observedTokens: 7, tokenTimeline: [{ timestamp: 100, total: 7 }] },
+    { id: 'signal-only', hasUserPrompt: false, prompts: 0, completedResponses: 1, observedTokens: 5, tokenTimeline: [{ timestamp: 200, total: 5 }] },
+  ] })
+  assert.equal(result.conversations, 1)
+  assert.equal(result.signalOnlyIds, 1)
+  assert.equal(result.tokens, 12)
+  assert.equal(result.timeline.at(-1)?.total, 12)
+})
+
 test('rejects a malformed upstream response', () => {
   assert.throws(() => summarizeTelemetry('claude', 30, {}), /sessions array/)
 })

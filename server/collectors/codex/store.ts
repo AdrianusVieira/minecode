@@ -52,6 +52,7 @@ export class Store {
       );
       CREATE INDEX IF NOT EXISTS events_conversation_time ON events(conversation_id, timestamp_ms);
       CREATE INDEX IF NOT EXISTS events_time ON events(timestamp_ms);
+      CREATE INDEX IF NOT EXISTS events_prompt_conversation ON events(conversation_id) WHERE name = 'user_prompt';
       CREATE TABLE IF NOT EXISTS deleted_conversations (id TEXT PRIMARY KEY, deleted_ms INTEGER NOT NULL);
     `)
     const columns = this.db.pragma('table_info(events)') as { name: string }[]
@@ -108,10 +109,11 @@ export class Store {
 
   sessions(window: TimeWindow = 30) {
     const [start, end] = bounds(window)
+    const promptedIds = new Set((this.db.prepare("SELECT DISTINCT conversation_id FROM events WHERE name = 'user_prompt'").all() as { conversation_id: string }[]).map((row) => row.conversation_id))
     const rows = this.db.prepare('SELECT * FROM events WHERE timestamp_ms >= ? AND timestamp_ms < ? ORDER BY timestamp_ms, rowid')
       .all(start, end) as Row[]
     const sessions = new Map<string, {
-      id: string; firstSeen: number; lastSeen: number; models: string[]; prompts: number
+      id: string; firstSeen: number; lastSeen: number; hasUserPrompt: boolean; models: string[]; prompts: number
       apiRequests: number; errors: number; toolCalls: number; approvals: number
       completedResponses: number; observedTokens: number | null; inputTokens: number | null
       outputTokens: number | null; cachedInputTokens: number | null; cacheWriteTokens: number | null
@@ -130,6 +132,7 @@ export class Store {
       if (!session) {
         session = {
           id: row.conversation_id, firstSeen: row.timestamp_ms, lastSeen: row.timestamp_ms,
+          hasUserPrompt: promptedIds.has(row.conversation_id),
           models: [], prompts: 0, apiRequests: 0, errors: 0, toolCalls: 0, approvals: 0,
           completedResponses: 0, observedTokens: null, inputTokens: null, outputTokens: null,
           cachedInputTokens: null, cacheWriteTokens: null, reasoningOutputTokens: null, medianRequestMs: null,

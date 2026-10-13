@@ -36,13 +36,13 @@ function Activity({ events }: { events: SessionActivity[] }) {
   </li>)}</ol>
 }
 
-export default function SessionTelemetryPanel({ session, project, theme, displayControls, onClose }: { session: Session; project: Project; theme: PanelTheme; displayControls: React.ReactNode; onClose: () => void }) {
+export default function SessionTelemetryPanel({ session, project, initialPeriod, theme, displayControls, resizeHandle, onClose }: { session: Session; project: Project; initialPeriod: 1 | 2 | 7 | 30; theme: PanelTheme; displayControls: React.ReactNode; resizeHandle: React.ReactNode; onClose: () => void }) {
   const source: TelemetrySource = project.source
   const id = session.externalId || session.id
   const panelRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const loadedCountRef = useRef(50)
-  const [period, setPeriod] = useState<TelemetryPeriod>(30)
+  const [period, setPeriod] = useState<TelemetryPeriod>(initialPeriod)
   const [data, setData] = useState<SessionView | null>(null)
   const [activity, setActivity] = useState<SessionActivity[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -97,7 +97,7 @@ export default function SessionTelemetryPanel({ session, project, theme, display
 
   const containFocus = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Tab') return
-    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>('button, select, input, summary') || [])]
+    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>('button, select, summary, [role="separator"]') || [])].filter((item) => item.getClientRects().length > 0)
     if (!controls.length) return
     const first = controls[0], last = controls.at(-1)!
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
@@ -114,9 +114,10 @@ export default function SessionTelemetryPanel({ session, project, theme, display
 
   return <><div className="telemetry-scrim" onClick={onClose} aria-hidden="true" />
     <aside ref={panelRef} className={`telemetry-panel session-telemetry-panel ${source} ${theme}`} role="dialog" aria-modal="true" aria-label={`${name} session details`} onKeyDown={containFocus}>
+      {resizeHandle}
       <div className="telemetry-panel-head"><div><p className="telemetry-eyebrow">{name.toUpperCase()} / SESSION AT {project.name.toUpperCase()}</p><h2>{session.name}</h2><p>Observed activity and usage for this {source === 'claude' ? 'chat' : 'conversation'}.</p></div><button ref={closeRef} type="button" className="telemetry-close" onClick={onClose} aria-label="Close session details">×</button></div>
       {displayControls}
-      <div className="telemetry-toolbar"><label>Period <select value={period} onChange={(event) => setPeriod(event.target.value === 'all' ? 'all' : Number(event.target.value) as 7 | 30 | 90)}><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option><option value="all">All time</option></select></label>{data && <span>Last observed {dateTime(detail?.lastSeen ?? null)}</span>}</div>
+      <div className="telemetry-toolbar"><label>Period <select value={period} onChange={(event) => setPeriod(event.target.value === 'all' ? 'all' : Number(event.target.value) as 1 | 2 | 7 | 30 | 90)}><option value={1}>Last 24 hours</option><option value={2}>Last 48 hours</option><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option><option value="all">All time</option></select></label>{data && <span>Last observed {dateTime(detail?.lastSeen ?? null)}</span>}</div>
       {error && !data ? <div className="telemetry-message" role="status"><h3>Session unavailable</h3><p>{error}</p></div> : !data ? <div className="telemetry-message" role="status">Loading session…</div> : <div className="session-telemetry-content">
         <div className="telemetry-metrics">
           <Metric label={source === 'claude' ? 'Tokens' : 'Observed tokens'} value={number(tokenTotal)} hint={source === 'codex' ? `${codex?.tokenTimeline.length || 0} of ${codex?.completedResponses || 0} completions with counts` : 'Input, output, and cache'} />
