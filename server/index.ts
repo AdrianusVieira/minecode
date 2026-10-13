@@ -3,6 +3,7 @@ import { createServer, type ServerResponse } from 'node:http'
 import { extname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getWorldSnapshot } from './worldSource.js'
+import { getTelemetrySummary } from './telemetrySummary.js'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const dist = join(root, 'dist')
@@ -28,6 +29,19 @@ const server = createServer(async (request, response) => {
     catch (error) {
       console.error('World data failed:', error)
       sendJson(response, { error: 'World data is unavailable. Check the selected data source.' }, 503)
+    }
+    return
+  }
+  const telemetryMatch = /^\/api\/telemetry\/(claude|codex)$/.exec(pathname)
+  if (telemetryMatch) {
+    const rawPeriod = url.searchParams.get('days') || '30'
+    if (!['7', '30', '90', 'all'].includes(rawPeriod)) { sendJson(response, { error: 'days must be 7, 30, 90, or all' }, 400); return }
+    try {
+      const period = rawPeriod === 'all' ? 'all' : Number(rawPeriod) as 7 | 30 | 90
+      sendJson(response, await getTelemetrySummary(telemetryMatch[1] as 'claude' | 'codex', period))
+    } catch (error) {
+      console.error('Telemetry summary failed:', error)
+      sendJson(response, { error: `${telemetryMatch[1] === 'claude' ? 'Claude Code' : 'Codex'} dashboard is unavailable. Start its local server to see live usage.` }, 503)
     }
     return
   }

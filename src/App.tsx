@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import WorldScene, { type PanKey, type WorldControls } from './WorldScene'
 import type { Project, Session, WorldSnapshot } from './worldData'
 import { groupCount } from './worldData'
+import TelemetryPanel from './TelemetryPanel'
+import type { TelemetrySource } from './telemetryData'
 
 function timeAgo(value: string | null): string {
   if (!value) return 'No timestamp supplied'
@@ -24,6 +26,7 @@ export default function App() {
   const [showGuide, setShowGuide] = useState(false)
   const [copied, setCopied] = useState(false)
   const [days, setDays] = useState(2)
+  const [telemetrySource, setTelemetrySource] = useState<TelemetrySource | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -44,7 +47,8 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setSelectedId(null); setShowGuide(false) }
+      if (event.key === 'Escape') { setSelectedId(null); setShowGuide(false); setTelemetrySource(null) }
+      if (telemetrySource) return
       if (event.target instanceof HTMLElement && (event.target.isContentEditable || event.target.matches('input, textarea, select, [role="textbox"]'))) return
       if (panKeys.has(event.key as PanKey) && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault()
@@ -62,7 +66,7 @@ export default function App() {
     window.addEventListener('keyup', onKeyUp)
     window.addEventListener('blur', onBlur)
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKeyUp); window.removeEventListener('blur', onBlur) }
-  }, [])
+  }, [telemetrySource])
 
   const projects = snapshot?.projects || []
   const focusedProject = projects.find((project) => project.id === focusedId)
@@ -81,7 +85,7 @@ export default function App() {
   }
 
   return <main className="app-shell">
-    {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId} focusedId={focusedId} onSelectSession={setSelectedId} onFocusProject={focusProject} />}
+    {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId} focusedId={focusedId} onSelectSession={setSelectedId} onFocusProject={focusProject} onOpenTelemetry={(source) => { setSelectedId(null); setShowGuide(false); setTelemetrySource(source) }} />}
     {!snapshot && <div className="loading-world"><div className="loading-mark">✦</div><p>{error || 'Preparing the village…'}</p><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
     <header className="app-header">
       <div className="brand-mark" aria-hidden="true"><span className="brand-roof" /><span className="brand-home" /><span className="brand-door" /></div>
@@ -94,7 +98,7 @@ export default function App() {
     </div>
     {showGuide && <div className="guide-popover" role="dialog" aria-label="How to explore">
       <div className="popover-heading"><strong>Explore the village</strong><button type="button" aria-label="Close guide" onClick={() => setShowGuide(false)}>×</button></div>
-      <p>Drag or use the arrow keys to pan. Shift-drag or right-drag to rotate and tilt. Scroll or pinch to zoom. Cross the river between the Claude village and Codex outpost. Each bank has a hall for sessions without a project. Select a building name to move closer, then select a character for session details.</p>
+      <p>Drag or use the arrow keys to pan. Shift-drag or right-drag to rotate and tilt. Scroll or pinch to zoom. Cross the river between the Claude village and Codex outpost. Select a telemetry board for each district’s usage dashboard. Select a building name to move closer, then select a character for session details.</p>
       <p className="guide-shortcuts">Keyboard: <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> pan · <kbd>0</kbd> fit all · <kbd>Q</kbd> / <kbd>E</kbd> rotate · <kbd>Esc</kbd> close</p>
     </div>}
     <div className="world-intro"><span className="intro-line" />Two banks. One world. Every session has a place.</div>
@@ -121,6 +125,7 @@ export default function App() {
       {snapshot?.source !== 'sample' && <button type="button" className="copy-button" onClick={() => void copyId()}>{copied ? 'Copied session ID' : 'Copy session ID'} <span aria-hidden="true">↗</span></button>}
       <p className="panel-note">Activity is the latest supplied signal. It does not confirm that a session is currently running.</p>
     </aside>}
+    {telemetrySource && <TelemetryPanel key={telemetrySource} source={telemetrySource} onClose={() => setTelemetrySource(null)} />}
     {error && snapshot && <div className="data-warning" role="status">Showing the last village snapshot. {error}</div>}
   </main>
 }

@@ -4,7 +4,7 @@ A navigable, blocky world for Claude Code and Codex sessions. Claude's workshops
 
 ![Minecode in sample mode, showing both districts and their communal halls](docs/village-preview.jpg)
 
-The world fills the browser viewport. Drag or use the arrow keys to pan, Shift-drag or right-drag to rotate and tilt, and scroll or pinch to zoom. Select a building name to focus it, and select a character to inspect its session. The map controls rotate, zoom, and fit the whole village. Keyboard shortcuts: arrow keys to pan, `0` to fit all, `Q` and `E` to rotate, and `Escape` to close the details panel. A coffee badge appears above a character while they take a sip.
+The world fills the browser viewport. Drag or use the arrow keys to pan, Shift-drag or right-drag to rotate and tilt, and scroll or pinch to zoom. Select a building name to focus it, and select a character to inspect its session. Each bank has an outdoor telemetry board: select it to open that agent's usage dashboard in a panel occupying 75% of the screen on desktop. The panel offers 7, 30, and 90 day or all-time totals and a cumulative token chart; it refreshes every 15 seconds. The map controls rotate, zoom, and fit the whole village. Keyboard shortcuts: arrow keys to pan, `0` to fit all, `Q` and `E` to rotate, and `Escape` to close the details panel. A coffee badge appears above a character while they take a sip.
 
 ## Try it
 
@@ -15,7 +15,7 @@ npm install
 VILLAGE_SOURCE=sample npm run dev
 ```
 
-Open <http://127.0.0.1:5177>. Sample mode uses fictional session data and needs no telemetry dashboards. The development command starts Vite and Minecode's local API together. For a built version, run `npm start` and open <http://127.0.0.1:41321>.
+Open <http://127.0.0.1:5177>. Sample mode uses fictional session data for the world; its telemetry boards show live usage only when the corresponding local dashboard is running, otherwise they explain how to connect it. The development command starts Vite and Minecode's local API together. For a built version, run `npm start` and open <http://127.0.0.1:41321>.
 
 ## Use live sessions
 
@@ -34,7 +34,7 @@ Claude's API provides project and session titles. Codex's API provides session I
 
 ### Local data boundary
 
-The sample world and preview image contain fictional sessions; no live telemetry snapshots are tracked. At runtime, Minecode's local API sends only names, IDs, timestamps, and short generic activity labels to the browser; it does not return prompts, transcripts, tool inputs, or credentials. Names and IDs from your own sessions may still be private. Keep the live server and dashboard APIs on loopback, and use sample mode for screenshots or public demos.
+The sample world and preview image contain fictional sessions; no live telemetry snapshots are tracked. At runtime, Minecode's world API sends only names, IDs, timestamps, and short generic activity labels to the browser. The telemetry board API sends aggregated counts, cost estimates where available, and a bounded token timeline. Neither API returns prompts, transcripts, tool inputs, or credentials. Names, IDs, and usage totals from your own sessions may still be private. Keep the live server and dashboard APIs on loopback, and close the telemetry dashboards before taking public screenshots, even in sample mode.
 
 ## Use a standalone data file
 

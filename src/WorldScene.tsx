@@ -1,10 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { Project } from './worldData'
+import type { TelemetrySource } from './telemetryData'
 
 export type PanKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
 export type WorldControls = { fit: () => void; zoom: (direction: number) => void; rotate: (direction: number) => void; focusProject: (id: string) => void; setPanKey: (key: PanKey, pressed: boolean) => void; clearPanKeys: () => void }
-type Props = { projects: Project[]; selectedId: string | null; focusedId: string | null; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void }
+type Props = { projects: Project[]; selectedId: string | null; focusedId: string | null; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void; onOpenTelemetry: (source: TelemetrySource) => void }
 type Place = { point: THREE.Vector3; width: number }
 type Routine = { desk: number; travel: number; linger: number; settle: number; period: number; phase: number; coffeePeriod: number; coffeeDuration: number; coffeePhase: number; strideSpeed: number }
 type PersonRig = {
@@ -16,7 +17,7 @@ type PersonRig = {
 type Runtime = {
   camera: THREE.OrthographicCamera; target: THREE.Vector3; desiredTarget: THREE.Vector3
   desiredZoom: number; overviewZoom: number; yaw: number; desiredYaw: number; pitch: number; desiredPitch: number; buildings: Map<string, Place>
-  seats: Map<string, THREE.Vector3>; rigs: Map<string, PersonRig>; focusFrames: Map<string, THREE.Group>; ripples: THREE.Mesh[]
+  seats: Map<string, THREE.Vector3>; rigs: Map<string, PersonRig>; focusFrames: Map<string, THREE.Group>; boards: Map<TelemetrySource, THREE.Vector3>; ripples: THREE.Mesh[]
 }
 
 const colors = {
@@ -568,7 +569,7 @@ function addBrazier(scene: THREE.Scene, x: number, z: number): void {
   box(scene, 0.12, 0.26, 0.13, materials.ember, x + 0.14, 1.19, z + 0.07).castShadow = false
 }
 
-function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, buildings: Map<string, Place>, focusFrames: Map<string, THREE.Group>): { size: number; ripples: THREE.Mesh[] } {
+function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, buildings: Map<string, Place>, focusFrames: Map<string, THREE.Group>): { size: number; ripples: THREE.Mesh[]; boards: Map<TelemetrySource, THREE.Vector3> } {
   const maxWidth = Math.max(9.4, ...projects.map((project) => buildingMetrics(project).width))
   const claudeProjects = projects.filter((project) => project.source !== 'codex' && project.kind !== 'Commons')
   const codexProjects = projects.filter((project) => project.source === 'codex' && project.kind !== 'Commons')
@@ -591,6 +592,24 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   box(scene, size / 2 - 3.9, 0.045, size, materials.outpostGround, size / 4 + 1.95, -0.025, 0)
   const ripples = addRiver(scene, size)
   addBridge(scene)
+  const boards = new Map<TelemetrySource, THREE.Vector3>()
+  for (const source of ['claude', 'codex'] as const) {
+    const x = source === 'claude' ? -11.5 : 11.5
+    const z = 11
+    const group = new THREE.Group()
+    group.position.set(x, 0, z)
+    group.userData.telemetrySource = source
+    const frame = source === 'claude' ? materials.timber : materials.outpostTimber
+    const face = source === 'claude' ? materials.parchment : materials.outpostBanner
+    box(group, 0.25, 2.9, 0.25, frame, -1.9, 1.45, 0)
+    box(group, 0.25, 2.9, 0.25, frame, 1.9, 1.45, 0)
+    box(group, 4.3, 2.05, 0.22, frame, 0, 2.08, 0)
+    box(group, 3.93, 1.7, 0.08, face, 0, 2.08, 0.17)
+    box(group, 4.42, 0.24, 0.35, source === 'claude' ? materials.woodLight : materials.outpostAccent, 0, 3.21, 0)
+    for (const [index, width] of [2.7, 2.2, 2.5].entries()) box(group, width, 0.11, 0.05, frame, 0, 2.55 - index * 0.43, 0.23)
+    scene.add(group)
+    boards.set(source, new THREE.Vector3(x, 3.55, z))
+  }
   if (projects.some((project) => project.source === 'claude')) {
     addWell(scene, -districtX, -8.5)
     for (const z of [-4.2, 4.2]) addLamp(scene, -6.7, z)
@@ -685,7 +704,7 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
       if (index % 5 === 0) box(scene, 0.07, 0.42, 0.07, materials.reed, x + 0.21, 0.21, z)
     }
   }
-  return { size, ripples }
+  return { size, ripples, boards }
 }
 
 const cameraOffset = new THREE.Vector3(29, 34, 43)
@@ -768,7 +787,7 @@ function animatePerson(rig: PersonRig, time: number, reducedMotion: boolean): vo
   rig.anchor.set(rig.origin.x + rig.person.position.x, 2.75 + rig.body.position.y, rig.origin.z + rig.person.position.z)
 }
 
-const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, focusedId, onSelectSession, onFocusProject }, ref) {
+const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, focusedId, onSelectSession, onFocusProject, onOpenTelemetry }, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<Runtime | null>(null)
   const panKeysRef = useRef(new Set<PanKey>())
@@ -776,8 +795,8 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
   selectedRef.current = selectedId
   const focusedRef = useRef(focusedId)
   focusedRef.current = focusedId
-  const callbacksRef = useRef({ onSelectSession, onFocusProject })
-  callbacksRef.current = { onSelectSession, onFocusProject }
+  const callbacksRef = useRef({ onSelectSession, onFocusProject, onOpenTelemetry })
+  callbacksRef.current = { onSelectSession, onFocusProject, onOpenTelemetry }
   const [unavailable, setUnavailable] = useState(false)
   const signature = projects.map((project) => `${project.id}:${project.source}:${project.sessions.map((session) => session.id).join(',')}`).join('|')
 
@@ -820,14 +839,14 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     const rigs = new Map<string, PersonRig>()
     const focusFrames = new Map<string, THREE.Group>()
     const sessionProjects = new Map(projects.flatMap((project) => project.sessions.map((session): [string, string] => [session.id, project.id])))
-    const { size, ripples } = addVillage(scene, projects, seats, rigs, buildings, focusFrames)
+    const { size, ripples, boards } = addVillage(scene, projects, seats, rigs, buildings, focusFrames)
     const shadowExtent = Math.max(48, size * 0.74)
     sun.shadow.camera.left = -shadowExtent; sun.shadow.camera.right = shadowExtent
     sun.shadow.camera.top = shadowExtent; sun.shadow.camera.bottom = -shadowExtent
     sun.shadow.camera.updateProjectionMatrix()
     const target = new THREE.Vector3()
     const runtime: Runtime = { camera, target, desiredTarget: target.clone(), desiredZoom: 1, overviewZoom: 1,
-      yaw: initialYaw, desiredYaw: initialYaw, pitch: initialPitch, desiredPitch: initialPitch, buildings, seats, rigs, focusFrames, ripples }
+      yaw: initialYaw, desiredYaw: initialYaw, pitch: initialPitch, desiredPitch: initialPitch, buildings, seats, rigs, focusFrames, boards, ripples }
     runtimeRef.current = runtime
     camera.position.copy(cameraOffset)
     camera.lookAt(target)
@@ -840,11 +859,15 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       raycaster.setFromCamera(pointer, camera)
     }
     const groundAt = (clientX: number, clientY: number) => { aim(clientX, clientY); return raycaster.ray.intersectPlane(groundPlane, new THREE.Vector3()) }
-    const hitSession = (clientX: number, clientY: number): string | null => {
+    const hitInteractive = (clientX: number, clientY: number): { session?: string; board?: TelemetrySource } | null => {
       aim(clientX, clientY)
       for (const hit of raycaster.intersectObjects(scene.children, true)) {
         let object: THREE.Object3D | null = hit.object
-        while (object) { if (object.userData.sessionId) return String(object.userData.sessionId); object = object.parent }
+        while (object) {
+          if (object.userData.telemetrySource) return { board: object.userData.telemetrySource as TelemetrySource }
+          if (object.userData.sessionId) return { session: String(object.userData.sessionId) }
+          object = object.parent
+        }
       }
       return null
     }
@@ -857,7 +880,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       renderer.domElement.style.cursor = 'grabbing'
     }
     const move = (event: PointerEvent) => {
-      if (!drag || drag.id !== event.pointerId) { renderer.domElement.style.cursor = hitSession(event.clientX, event.clientY) ? 'pointer' : 'grab'; return }
+      if (!drag || drag.id !== event.pointerId) { renderer.domElement.style.cursor = hitInteractive(event.clientX, event.clientY) ? 'pointer' : 'grab'; return }
       if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) drag.moved = true
       if (drag.moved) {
         if (drag.mode === 'rotate') {
@@ -876,7 +899,11 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       const { moved, mode } = drag
       drag = null
       renderer.domElement.style.cursor = 'grab'
-      if (!moved && mode === 'pan') { const id = hitSession(event.clientX, event.clientY); if (id) callbacksRef.current.onSelectSession(id) }
+      if (!moved && mode === 'pan') {
+        const hit = hitInteractive(event.clientX, event.clientY)
+        if (hit?.board) callbacksRef.current.onOpenTelemetry(hit.board)
+        else if (hit?.session) callbacksRef.current.onSelectSession(hit.session)
+      }
     }
     const contextMenu = (event: MouseEvent) => event.preventDefault()
     const wheel = (event: WheelEvent) => {
@@ -947,7 +974,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       for (const label of host.querySelectorAll<HTMLElement>('[data-world-label]')) {
         const kind = label.dataset.worldLabel
         const id = label.dataset.worldId || ''
-        const anchor = kind === 'project' ? buildings.get(id)?.point : seats.get(id)
+        const anchor = kind === 'project' ? buildings.get(id)?.point : kind === 'board' ? boards.get(id as TelemetrySource) : seats.get(id)
         if (!anchor) continue
         if (kind === 'project') label.classList.toggle('is-overview', camera.zoom < runtime.overviewZoom * 1.45)
         labelPoint.copy(anchor)
@@ -961,7 +988,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
         if (onScreen && show) visibleLabels.push({ label, kind: kind || '', x: (labelPoint.x + 1) * host.clientWidth / 2, y: (1 - labelPoint.y) * host.clientHeight / 2 })
       }
       const occupied: { left: number; right: number; top: number; bottom: number }[] = []
-      const priority = (kind: string) => kind === 'project' ? -1 : kind === 'coffee' ? 0 : 1
+      const priority = (kind: string) => kind === 'board' ? -2 : kind === 'project' ? -1 : kind === 'coffee' ? 0 : 1
       for (const item of visibleLabels.sort((a, b) => priority(a.kind) - priority(b.kind))) {
         const width = item.label.offsetWidth
         const height = item.label.offsetHeight
@@ -1019,6 +1046,9 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
   return <div className="world-host" ref={hostRef} aria-label="Interactive village map">
     {unavailable && <div className="world-unavailable">This browser cannot start the 3D village. Try enabling WebGL.</div>}
     <div className="world-label-layer">
+      {(['claude', 'codex'] as const).map((source) => <button className={`telemetry-board-label ${source}`} key={source} data-world-label="board" data-world-id={source} type="button" onClick={() => callbacksRef.current.onOpenTelemetry(source)} aria-label={`Open ${source === 'claude' ? 'Claude Code' : 'Codex'} telemetry`}>
+        <span>VILLAGE TELEMETRY</span><strong>{source === 'claude' ? 'Claude Code' : 'Codex'}</strong><small>Open dashboard ↗</small>
+      </button>)}
       {projects.map((project) => <button className={`building-label ${project.source === 'codex' ? 'codex' : ''} ${project.kind === 'Commons' ? 'commons' : ''} ${project.id === activeProjectId ? 'is-focused' : ''}`} key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => callbacksRef.current.onFocusProject(project.id)} type="button">
         <span className="building-label-kind">{project.source} · {project.kind}</span><strong>{project.name}</strong><small>{project.sessions.length} {project.sessions.length === 1 ? 'session' : 'sessions'}</small>
       </button>)}
