@@ -44,4 +44,4 @@ const server = createServer(async (request, response) => {
   } catch { sendJson(response, { error: 'Build the project first with npm run build' }, 503) }
 })
 
-server.listen(port, '127.0.0.1', () => console.log(`The Village: http://127.0.0.1:${port}`))
+server.listen(port, '127.0.0.1', () => console.log(`Minecode: http://127.0.0.1:${port}`))
