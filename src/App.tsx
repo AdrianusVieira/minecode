@@ -4,6 +4,7 @@ import type { Project, Session, WorldSnapshot } from './worldData'
 import { groupCount } from './worldData'
 import TelemetryPanel from './TelemetryPanel'
 import SessionTelemetryPanel from './SessionTelemetryPanel'
+import PanelDisplayControls, { type PanelTheme } from './PanelDisplayControls'
 import type { TelemetrySource } from './telemetryData'
 
 function timeAgo(value: string | null): string {
@@ -17,6 +18,14 @@ function timeAgo(value: string | null): string {
 }
 
 const panKeys = new Set<PanKey>(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
+const savedTheme = (): PanelTheme => {
+  try { const value = localStorage.getItem('minecode.panel.theme'); if (value === 'light' || value === 'dark') return value } catch { /* Storage can be unavailable. */ }
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+}
+const savedWidth = (): number => {
+  try { const value = Number(localStorage.getItem('minecode.panel.width')); if (value >= 50 && value <= 80) return value } catch { /* Storage can be unavailable. */ }
+  return 75
+}
 
 export default function App() {
   const scene = useRef<WorldControls>(null)
@@ -28,6 +37,11 @@ export default function App() {
   const [copied, setCopied] = useState(false)
   const [days, setDays] = useState(2)
   const [telemetrySource, setTelemetrySource] = useState<TelemetrySource | null>(null)
+  const [panelTheme, setPanelTheme] = useState<PanelTheme>(savedTheme)
+  const [panelWidth, setPanelWidth] = useState(savedWidth)
+
+  useEffect(() => { try { localStorage.setItem('minecode.panel.theme', panelTheme) } catch { /* Storage can be unavailable. */ } }, [panelTheme])
+  useEffect(() => { try { localStorage.setItem('minecode.panel.width', String(panelWidth)) } catch { /* Storage can be unavailable. */ } }, [panelWidth])
 
   useEffect(() => {
     let alive = true
@@ -85,8 +99,10 @@ export default function App() {
     window.setTimeout(() => setCopied(false), 2000)
   }
 
-  return <main className="app-shell">
-    {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId} focusedId={focusedId} onSelectSession={setSelectedId} onFocusProject={focusProject} onOpenTelemetry={(source) => { setSelectedId(null); setShowGuide(false); setTelemetrySource(source) }} />}
+  const sessionFocusOpen = !!(selected && snapshot?.source === 'telemetry')
+  const displayControls = <PanelDisplayControls theme={panelTheme} width={panelWidth} onThemeChange={setPanelTheme} onWidthChange={setPanelWidth} />
+  return <main className={`app-shell ${sessionFocusOpen ? 'session-focus-open' : ''}`} style={{ '--panel-width': `clamp(480px, ${panelWidth}vw, 100vw)` } as React.CSSProperties}>
+    {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId} focusedId={focusedId} lockSessionFocus={sessionFocusOpen} onSelectSession={setSelectedId} onFocusProject={focusProject} onOpenTelemetry={(source) => { setSelectedId(null); setShowGuide(false); setTelemetrySource(source) }} />}
     {!snapshot && <div className="loading-world"><div className="loading-mark">✦</div><p>{error || 'Preparing the village…'}</p><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
     <header className="app-header">
       <div className="brand-mark" aria-hidden="true"><span className="brand-roof" /><span className="brand-home" /><span className="brand-door" /></div>
@@ -126,8 +142,8 @@ export default function App() {
       {snapshot?.source !== 'sample' && <button type="button" className="copy-button" onClick={() => void copyId()}>{copied ? 'Copied session ID' : 'Copy session ID'} <span aria-hidden="true">↗</span></button>}
       <p className="panel-note">Activity is the latest supplied signal. It does not confirm that a session is currently running.</p>
     </aside>}
-    {selected && snapshot?.source === 'telemetry' && <SessionTelemetryPanel key={`${selected.project.source}:${selected.session.id}`} session={selected.session} project={selected.project} onClose={() => setSelectedId(null)} />}
-    {telemetrySource && <TelemetryPanel key={telemetrySource} source={telemetrySource} onClose={() => setTelemetrySource(null)} />}
+    {selected && snapshot?.source === 'telemetry' && <SessionTelemetryPanel key={`${selected.project.source}:${selected.session.id}`} session={selected.session} project={selected.project} theme={panelTheme} displayControls={displayControls} onClose={() => setSelectedId(null)} />}
+    {telemetrySource && <TelemetryPanel key={telemetrySource} source={telemetrySource} theme={panelTheme} displayControls={displayControls} onClose={() => setTelemetrySource(null)} />}
     {error && snapshot && <div className="data-warning" role="status">Showing the last village snapshot. {error}</div>}
   </main>
 }

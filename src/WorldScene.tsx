@@ -5,7 +5,7 @@ import type { TelemetrySource } from './telemetryData'
 
 export type PanKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
 export type WorldControls = { fit: () => void; zoom: (direction: number) => void; rotate: (direction: number) => void; focusProject: (id: string) => void; setPanKey: (key: PanKey, pressed: boolean) => void; clearPanKeys: () => void }
-type Props = { projects: Project[]; selectedId: string | null; focusedId: string | null; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void; onOpenTelemetry: (source: TelemetrySource) => void }
+type Props = { projects: Project[]; selectedId: string | null; focusedId: string | null; lockSessionFocus: boolean; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void; onOpenTelemetry: (source: TelemetrySource) => void }
 type Place = { point: THREE.Vector3; width: number }
 type Routine = { desk: number; travel: number; linger: number; settle: number; period: number; phase: number; coffeePeriod: number; coffeeDuration: number; coffeePhase: number; strideSpeed: number }
 type PersonRig = {
@@ -800,12 +800,15 @@ function animatePerson(rig: PersonRig, time: number, reducedMotion: boolean): vo
   rig.anchor.set(rig.origin.x + rig.person.position.x, 2.75 + rig.body.position.y, rig.origin.z + rig.person.position.z)
 }
 
-const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, focusedId, onSelectSession, onFocusProject, onOpenTelemetry }, ref) {
+const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, focusedId, lockSessionFocus, onSelectSession, onFocusProject, onOpenTelemetry }, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<Runtime | null>(null)
   const panKeysRef = useRef(new Set<PanKey>())
   const selectedRef = useRef(selectedId)
   selectedRef.current = selectedId
+  const lockedSessionRef = useRef<string | null>(null)
+  lockedSessionRef.current = lockSessionFocus ? selectedId : null
+  const focusBeforeRef = useRef<{ target: THREE.Vector3; zoom: number; pitch: number } | null>(null)
   const focusedRef = useRef(focusedId)
   focusedRef.current = focusedId
   const callbacksRef = useRef({ onSelectSession, onFocusProject, onOpenTelemetry })
@@ -962,6 +965,15 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       const now = performance.now()
       const delta = Math.min((now - previousFrame) / 1000, 0.05)
       previousFrame = now
+      const t = now / 1000
+      rigs.forEach((rig) => animatePerson(rig, t, reducedMotion.matches))
+      const lockedRig = lockedSessionRef.current ? rigs.get(lockedSessionRef.current) : null
+      if (lockedRig) {
+        panKeysRef.current.clear()
+        runtime.desiredTarget.set(lockedRig.anchor.x, 1.2, lockedRig.anchor.z)
+        runtime.desiredZoom = 2.4
+        runtime.desiredPitch = Math.max(runtime.desiredPitch, 0.9)
+      }
       const keys = panKeysRef.current
       const horizontal = Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft'))
       const vertical = Number(keys.has('ArrowUp')) - Number(keys.has('ArrowDown'))
@@ -980,8 +992,6 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       camera.lookAt(runtime.target)
       camera.zoom += (runtime.desiredZoom - camera.zoom) * (reducedMotion.matches ? 1 : 0.1)
       camera.updateProjectionMatrix()
-      const t = now / 1000
-      rigs.forEach((rig) => animatePerson(rig, t, reducedMotion.matches))
       for (const ripple of ripples) ripple.position.x = ripple.userData.baseX + (reducedMotion.matches ? 0 : Math.sin(t * 0.7 + ripple.userData.phase) * 0.17)
       const visibleLabels: { label: HTMLElement; kind: string; x: number; y: number }[] = []
       for (const label of host.querySelectorAll<HTMLElement>('[data-world-label]')) {
@@ -1044,6 +1054,19 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
   }, [signature])
 
   useEffect(() => {
+    const runtime = runtimeRef.current
+    if (!runtime) return
+    if (lockSessionFocus && selectedId) {
+      if (!focusBeforeRef.current) focusBeforeRef.current = { target: runtime.desiredTarget.clone(), zoom: runtime.desiredZoom, pitch: runtime.desiredPitch }
+    } else if (focusBeforeRef.current) {
+      runtime.desiredTarget.copy(focusBeforeRef.current.target)
+      runtime.desiredZoom = focusBeforeRef.current.zoom
+      runtime.desiredPitch = focusBeforeRef.current.pitch
+      focusBeforeRef.current = null
+    }
+  }, [lockSessionFocus, selectedId, signature])
+
+  useEffect(() => {
     for (const project of projects) for (const session of project.sessions) {
       const rig = runtimeRef.current?.rigs.get(session.id)
       if (rig) rig.status = session.status
@@ -1053,7 +1076,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
   useEffect(() => { runtimeRef.current?.rigs.forEach((rig, id) => { rig.ring.visible = id === selectedId }) }, [selectedId, signature])
 
   const selectedProjectId = projects.find((project) => project.sessions.some((session) => session.id === selectedId))?.id
-  const activeProjectId = focusedId || selectedProjectId
+  const activeProjectId = selectedProjectId || focusedId
   useEffect(() => { runtimeRef.current?.focusFrames.forEach((frame, id) => { frame.visible = id === activeProjectId }) }, [activeProjectId, signature])
 
   return <div className="world-host" ref={hostRef} aria-label="Interactive village map">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AccountOverview, TelemetryPeriod, TelemetrySource, TelemetrySummary } from './telemetryData'
+import type { PanelTheme } from './PanelDisplayControls'
 
 const whole = new Intl.NumberFormat()
 const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
@@ -55,7 +56,7 @@ function AccountsView({ overview }: { overview: AccountOverview }) {
   </div>
 }
 
-export default function TelemetryPanel({ source, onClose }: { source: TelemetrySource; onClose: () => void }) {
+export default function TelemetryPanel({ source, theme, displayControls, onClose }: { source: TelemetrySource; theme: PanelTheme; displayControls: React.ReactNode; onClose: () => void }) {
   const panelRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const [period, setPeriod] = useState<TelemetryPeriod>(30)
@@ -69,7 +70,7 @@ export default function TelemetryPanel({ source, onClose }: { source: TelemetryS
   }, [source])
   const containFocus = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Tab') return
-    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>('button, select') || [])]
+    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>('button, select, input') || [])]
     if (!controls.length) return
     const first = controls[0], last = controls.at(-1)!
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
@@ -99,8 +100,9 @@ export default function TelemetryPanel({ source, onClose }: { source: TelemetryS
 
   const name = source === 'claude' ? 'Claude Code' : 'Codex'
   return <><div className="telemetry-scrim" onClick={onClose} aria-hidden="true" />
-    <aside ref={panelRef} className={`telemetry-panel ${source}`} role="dialog" aria-modal="true" aria-label={`${name} telemetry`} onKeyDown={containFocus}>
+    <aside ref={panelRef} className={`telemetry-panel ${source} ${theme}`} role="dialog" aria-modal="true" aria-label={`${name} telemetry`} onKeyDown={containFocus}>
       <div className="telemetry-panel-head"><div><p className="telemetry-eyebrow">{name.toUpperCase()} / TELEMETRY</p><h2>{view === 'accounts' ? 'Claude Code accounts' : `${name} dashboard`}</h2><p>{view === 'accounts' ? 'Usage attributed to each Claude account.' : `Observed usage across ${source === 'claude' ? 'chats' : 'conversations'}.`}</p></div><button ref={closeRef} type="button" className="telemetry-close" onClick={onClose} aria-label="Close telemetry dashboard">×</button></div>
+      {displayControls}
       {source === 'claude' && <div className="telemetry-tabs" role="tablist" aria-label="Claude telemetry views"><button type="button" role="tab" aria-selected={view === 'overview'} className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}>Overview</button><button type="button" role="tab" aria-selected={view === 'accounts'} className={view === 'accounts' ? 'active' : ''} onClick={() => setView('accounts')}>Accounts</button></div>}
       <div className="telemetry-toolbar"><label>Period <select value={period} onChange={(event) => setPeriod(event.target.value === 'all' ? 'all' : Number(event.target.value) as 7 | 30 | 90)}><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option><option value="all">All time</option></select></label>{(data || accounts) && <span>Updated {new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date((data || accounts)!.updatedAt))}</span>}</div>
       {error ? <div className="telemetry-message" role="status"><h3>Telemetry unavailable</h3><p>{error}</p><p>Minecode receives and stores {name} telemetry locally.</p></div> : view === 'accounts' ? accounts ? <AccountsView overview={accounts} /> : <div className="telemetry-message" role="status">Loading accounts…</div> : !data ? <div className="telemetry-message" role="status">Loading telemetry…</div> : <div className="telemetry-panel-content">

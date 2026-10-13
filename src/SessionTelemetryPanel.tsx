@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Chart, Metric, currency, duration, number } from './TelemetryPanel'
 import type { ClaudeSession, CodexSession, SessionActivity, SessionView, TelemetryPeriod, TelemetrySource } from './telemetryData'
 import type { Project, Session } from './worldData'
+import type { PanelTheme } from './PanelDisplayControls'
 
 const dateTime = (value: number | null) => value === null ? 'Unavailable' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 const eventNames: Record<string, string> = {
@@ -35,7 +36,7 @@ function Activity({ events }: { events: SessionActivity[] }) {
   </li>)}</ol>
 }
 
-export default function SessionTelemetryPanel({ session, project, onClose }: { session: Session; project: Project; onClose: () => void }) {
+export default function SessionTelemetryPanel({ session, project, theme, displayControls, onClose }: { session: Session; project: Project; theme: PanelTheme; displayControls: React.ReactNode; onClose: () => void }) {
   const source: TelemetrySource = project.source
   const id = session.externalId || session.id
   const panelRef = useRef<HTMLElement>(null)
@@ -96,7 +97,7 @@ export default function SessionTelemetryPanel({ session, project, onClose }: { s
 
   const containFocus = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Tab') return
-    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>('button, select, summary') || [])]
+    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>('button, select, input, summary') || [])]
     if (!controls.length) return
     const first = controls[0], last = controls.at(-1)!
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
@@ -112,8 +113,9 @@ export default function SessionTelemetryPanel({ session, project, onClose }: { s
     ? (claude.activeUserSeconds || 0) + (claude.activeCliSeconds || 0) : null
 
   return <><div className="telemetry-scrim" onClick={onClose} aria-hidden="true" />
-    <aside ref={panelRef} className={`telemetry-panel session-telemetry-panel ${source}`} role="dialog" aria-modal="true" aria-label={`${name} session details`} onKeyDown={containFocus}>
+    <aside ref={panelRef} className={`telemetry-panel session-telemetry-panel ${source} ${theme}`} role="dialog" aria-modal="true" aria-label={`${name} session details`} onKeyDown={containFocus}>
       <div className="telemetry-panel-head"><div><p className="telemetry-eyebrow">{name.toUpperCase()} / SESSION AT {project.name.toUpperCase()}</p><h2>{session.name}</h2><p>Observed activity and usage for this {source === 'claude' ? 'chat' : 'conversation'}.</p></div><button ref={closeRef} type="button" className="telemetry-close" onClick={onClose} aria-label="Close session details">×</button></div>
+      {displayControls}
       <div className="telemetry-toolbar"><label>Period <select value={period} onChange={(event) => setPeriod(event.target.value === 'all' ? 'all' : Number(event.target.value) as 7 | 30 | 90)}><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option><option value="all">All time</option></select></label>{data && <span>Last observed {dateTime(detail?.lastSeen ?? null)}</span>}</div>
       {error && !data ? <div className="telemetry-message" role="status"><h3>Session unavailable</h3><p>{error}</p></div> : !data ? <div className="telemetry-message" role="status">Loading session…</div> : <div className="session-telemetry-content">
         <div className="telemetry-metrics">
