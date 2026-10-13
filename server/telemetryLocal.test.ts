@@ -9,6 +9,7 @@ import { Store as CodexStore } from './collectors/codex/store.js'
 import { startTelemetryReceivers } from './telemetryReceiver.js'
 import { getTelemetrySummary } from './telemetrySummary.js'
 import { importHistory } from './telemetryStore.js'
+import { getClaudeAccounts, getSessionEvents, getSessionView } from './telemetryViews.js'
 import { getWorldSnapshot } from './worldSource.js'
 
 const attribute = (key: string, value: string) => ({ key, value: { stringValue: value } })
@@ -43,6 +44,11 @@ test('Minecode receives both streams, persists them, and serves its own world an
     assert.equal((await post(servers[1], '/v1/metrics', codex)).status, 404)
     assert.equal(getTelemetrySummary('claude', 30, stores).tokens, 12)
     assert.equal(getTelemetrySummary('codex', 30, stores).prompts, 1)
+    assert.equal(getClaudeAccounts(30, stores).accounts[0].inputTokens, 12)
+    assert.equal(getSessionView('claude', 'claude-chat', 30, stores)?.session.id, 'claude-chat')
+    assert.equal(getSessionView('codex', 'codex-chat', 30, stores)?.prompts.length, 1)
+    assert.equal(getSessionView('codex', 'missing', 30, stores), null)
+    assert.equal(getSessionEvents('codex', 'codex-chat', 30, 0, stores)?.total, 1)
     const world = await getWorldSnapshot(undefined, 2, 'telemetry', stores)
     assert.equal(world.source, 'telemetry')
     assert.equal(world.projects.reduce((sum, project) => sum + project.sessions.length, 0), 2)

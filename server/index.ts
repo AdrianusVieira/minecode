@@ -6,6 +6,8 @@ import { getWorldSnapshot } from './worldSource.js'
 import { getTelemetrySummary } from './telemetrySummary.js'
 import { openTelemetryStores } from './telemetryStore.js'
 import { startTelemetryReceivers } from './telemetryReceiver.js'
+import { getClaudeAccounts, getSessionEvents, getSessionView } from './telemetryViews.js'
+import type { TelemetryPeriod, TelemetrySource } from '../src/telemetryData.js'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const dist = join(root, 'dist')
@@ -29,6 +31,11 @@ function sendJson(response: ServerResponse, data: unknown, status = 200): void {
   response.end(JSON.stringify(data))
 }
 
+function periodFrom(url: URL): TelemetryPeriod | null {
+  const raw = url.searchParams.get('days') || '30'
+  return ['7', '30', '90', 'all'].includes(raw) ? raw === 'all' ? 'all' : Number(raw) as 7 | 30 | 90 : null
+}
+
 const server = createServer(async (request, response) => {
   const url = new URL(request.url || '/', 'http://127.0.0.1')
   const pathname = url.pathname
@@ -45,15 +52,37 @@ const server = createServer(async (request, response) => {
   }
   const telemetryMatch = /^\/api\/telemetry\/(claude|codex)$/.exec(pathname)
   if (telemetryMatch) {
-    const rawPeriod = url.searchParams.get('days') || '30'
-    if (!['7', '30', '90', 'all'].includes(rawPeriod)) { sendJson(response, { error: 'days must be 7, 30, 90, or all' }, 400); return }
+    const period = periodFrom(url)
+    if (period === null) { sendJson(response, { error: 'days must be 7, 30, 90, or all' }, 400); return }
     try {
-      const period = rawPeriod === 'all' ? 'all' : Number(rawPeriod) as 7 | 30 | 90
       sendJson(response, getTelemetrySummary(telemetryMatch[1] as 'claude' | 'codex', period, stores))
     } catch (error) {
       console.error('Telemetry summary failed:', error)
       sendJson(response, { error: 'Telemetry data is unavailable. Check Minecode’s local storage.' }, 503)
     }
+    return
+  }
+  if (pathname === '/api/telemetry/claude/accounts') {
+    const period = periodFrom(url)
+    if (period === null) { sendJson(response, { error: 'days must be 7, 30, 90, or all' }, 400); return }
+    try { sendJson(response, getClaudeAccounts(period, stores)) }
+    catch (error) { console.error('Account overview failed:', error); sendJson(response, { error: 'Account data is unavailable.' }, 503) }
+    return
+  }
+  const sessionMatch = /^\/api\/telemetry\/(claude|codex)\/sessions\/([^/]+?)(\/events)?$/.exec(pathname)
+  if (sessionMatch) {
+    const period = periodFrom(url)
+    if (period === null) { sendJson(response, { error: 'days must be 7, 30, 90, or all' }, 400); return }
+    let id: string
+    try { id = decodeURIComponent(sessionMatch[2]) }
+    catch { sendJson(response, { error: 'Invalid session ID' }, 400); return }
+    const source = sessionMatch[1] as TelemetrySource
+    const offset = Number(url.searchParams.get('offset') || '0')
+    if (sessionMatch[3] && (!Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000)) { sendJson(response, { error: 'Invalid activity offset' }, 400); return }
+    try {
+      const data = sessionMatch[3] ? getSessionEvents(source, id, period, offset, stores) : getSessionView(source, id, period, stores)
+      sendJson(response, data || { error: 'Session not found in this period' }, data ? 200 : 404)
+    } catch (error) { console.error('Session view failed:', error); sendJson(response, { error: 'Session data is unavailable.' }, 503) }
     return
   }
   if (pathname !== '/' && !pathname.startsWith('/assets/')) { sendJson(response, { error: 'Not found' }, 404); return }

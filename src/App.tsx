@@ -3,6 +3,7 @@ import WorldScene, { type PanKey, type WorldControls } from './WorldScene'
 import type { Project, Session, WorldSnapshot } from './worldData'
 import { groupCount } from './worldData'
 import TelemetryPanel from './TelemetryPanel'
+import SessionTelemetryPanel from './SessionTelemetryPanel'
 import type { TelemetrySource } from './telemetryData'
 
 function timeAgo(value: string | null): string {
@@ -48,7 +49,7 @@ export default function App() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { setSelectedId(null); setShowGuide(false); setTelemetrySource(null) }
-      if (telemetrySource) return
+      if (telemetrySource || (selectedId && snapshot?.source === 'telemetry')) return
       if (event.target instanceof HTMLElement && (event.target.isContentEditable || event.target.matches('input, textarea, select, [role="textbox"]'))) return
       if (panKeys.has(event.key as PanKey) && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault()
@@ -66,7 +67,7 @@ export default function App() {
     window.addEventListener('keyup', onKeyUp)
     window.addEventListener('blur', onBlur)
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKeyUp); window.removeEventListener('blur', onBlur) }
-  }, [telemetrySource])
+  }, [telemetrySource, selectedId, snapshot?.source])
 
   const projects = snapshot?.projects || []
   const focusedProject = projects.find((project) => project.id === focusedId)
@@ -115,16 +116,17 @@ export default function App() {
       <span className="control-divider" />
       <button type="button" className="fit-button" onClick={fit} title="Fit all places">Fit all</button>
     </div>
-    {selected && <aside className="session-panel" aria-label="Session details">
+    {selected && snapshot?.source !== 'telemetry' && <aside className="session-panel" aria-label="Session details">
       <div className="panel-top"><span>{selected.project.source.toUpperCase()} SESSION / {selected.project.kind.toUpperCase()}</span><button type="button" onClick={() => setSelectedId(null)} aria-label="Close session details">×</button></div>
       <div className={`panel-portrait ${selected.project.source === 'codex' ? 'codex' : ''}`} aria-hidden="true"><span className={`portrait-orbit ${selected.session.status}`}><span className="portrait-body" /><span className="portrait-head"><span className="portrait-eyes" /><span className="portrait-nose" /></span></span></div>
       <p className="panel-kicker">AT {selected.project.name.toUpperCase()}</p>
       <h2>{selected.session.name}</h2>
       <div className="panel-activity"><span className={`activity-dot ${selected.session.status}`} /><div><small>LATEST ACTIVITY</small><strong>{selected.session.activity}</strong></div></div>
-      <dl className="panel-details"><div><dt>Last observed</dt><dd>{snapshot?.source === 'sample' ? 'Sample activity' : timeAgo(selected.session.updatedAt)}</dd></div><div><dt>Agent</dt><dd>{selected.project.source === 'codex' ? 'Codex' : 'Claude Code'}</dd></div><div><dt>Data</dt><dd>{snapshot?.source === 'sample' ? 'Illustrative session' : snapshot?.source === 'telemetry' ? 'Local telemetry' : 'Local session snapshot'}</dd></div></dl>
+      <dl className="panel-details"><div><dt>Last observed</dt><dd>{snapshot?.source === 'sample' ? 'Sample activity' : timeAgo(selected.session.updatedAt)}</dd></div><div><dt>Agent</dt><dd>{selected.project.source === 'codex' ? 'Codex' : 'Claude Code'}</dd></div><div><dt>Data</dt><dd>{snapshot?.source === 'sample' ? 'Illustrative session' : 'Local session snapshot'}</dd></div></dl>
       {snapshot?.source !== 'sample' && <button type="button" className="copy-button" onClick={() => void copyId()}>{copied ? 'Copied session ID' : 'Copy session ID'} <span aria-hidden="true">↗</span></button>}
       <p className="panel-note">Activity is the latest supplied signal. It does not confirm that a session is currently running.</p>
     </aside>}
+    {selected && snapshot?.source === 'telemetry' && <SessionTelemetryPanel key={`${selected.project.source}:${selected.session.id}`} session={selected.session} project={selected.project} onClose={() => setSelectedId(null)} />}
     {telemetrySource && <TelemetryPanel key={telemetrySource} source={telemetrySource} onClose={() => setTelemetrySource(null)} />}
     {error && snapshot && <div className="data-warning" role="status">Showing the last village snapshot. {error}</div>}
   </main>

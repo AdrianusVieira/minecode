@@ -156,6 +156,54 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .telemetry-message { padding: 45px 24px; border: 1px solid #3d494a; border-radius: 5px; background: #272f30; color: #aab5b3; text-align: center; }
 .telemetry-message h3 { color: #e7e8e2; }
 .telemetry-empty { padding: 34px; color: #aab5b3; text-align: center; }
+.telemetry-tabs { display: flex; gap: 6px; margin-top: 25px; border-bottom: 1px solid #3d494a; }
+.telemetry-tabs button { padding: 10px 17px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #9ca7a6; font-size: 12px; font-weight: 700; }
+.telemetry-tabs button.active { border-color: var(--telemetry-accent); color: #e7e8e2; }
+.telemetry-tabs button:hover { color: #e7e8e2; }
+.telemetry-tabs + .telemetry-toolbar { margin-top: 18px; }
+.account-explainer, .session-note { color: #a4afad; font-size: 12px; line-height: 1.6; }
+.account-explainer { margin: 0 0 20px; }
+.account-card { margin-bottom: 17px; padding: 22px; border: 1px solid #3d494a; border-radius: 5px; background: #272f30; }
+.account-card-heading { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.account-card-heading h3 { margin: 6px 0 0; font-family: 'Fraunces', Georgia, serif; font-size: 23px; font-weight: 500; overflow-wrap: anywhere; }
+.account-card-heading small { padding: 6px 9px; border: 1px solid #455152; border-radius: 3px; color: #b0bbb9; white-space: nowrap; }
+.account-usage-track { height: 7px; margin: 18px 0; border-radius: 8px; background: #3b4849; overflow: hidden; }
+.account-usage-track span { display: block; height: 100%; border-radius: inherit; background: var(--telemetry-accent); }
+.account-metrics .telemetry-metric { min-height: 98px; padding: 15px; background: #202829; }
+.account-metrics .telemetry-metric strong { font-size: clamp(20px, 2vw, 27px); }
+.account-breakdown, .session-breakdown { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.account-breakdown { margin-top: 15px; }
+.account-breakdown span, .session-breakdown span { padding: 13px; border: 1px solid #3d494a; border-radius: 4px; color: #9ca7a6; font-size: 11px; }
+.account-breakdown strong, .session-breakdown strong { display: block; margin-top: 5px; color: #e7e8e2; font-size: 15px; font-weight: 600; }
+.account-projects { margin: 15px 0 0; color: #aab5b3; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.session-telemetry-panel .telemetry-panel-head h2 { overflow-wrap: anywhere; }
+.session-info-row { display: flex; flex-wrap: wrap; gap: 9px; margin: 17px 0; }
+.session-info-row span { flex: 1 1 170px; padding: 13px 15px; border: 1px solid #3d494a; border-radius: 4px; color: #9ca7a6; font-size: 11px; }
+.session-info-row strong { display: block; margin-top: 5px; color: #e7e8e2; font-weight: 600; overflow-wrap: anywhere; }
+.session-detail-section { margin-top: 17px; border: 1px solid #3d494a; border-radius: 5px; background: #272f30; }
+.session-breakdown { padding: 19px 21px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.session-detail-section > .session-note { margin: 0; padding: 0 21px 19px; }
+.session-detail-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 17px; align-items: start; }
+.session-detail-columns .session-detail-section { min-width: 0; }
+.session-prompts, .session-activity-list { max-height: 540px; margin: 0; padding: 0; overflow-y: auto; }
+.session-prompts details { border-bottom: 1px solid #3d494a; }
+.session-prompts summary { display: flex; flex-direction: column; gap: 5px; padding: 14px 18px; color: #e7e8e2; cursor: pointer; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.session-prompts summary:hover { background: #313b3c; }
+.session-prompts time { color: #8d9998; font-size: 10px; }
+.session-prompt-body { padding: 0 18px 16px; }
+.session-prompt-body pre { max-height: 250px; margin: 0; padding: 13px; overflow: auto; border-radius: 4px; background: #1b2324; color: #d8dfdc; font: 11px/1.55 ui-monospace, SFMono-Regular, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.session-prompt-body small { display: block; margin-top: 9px; color: #9ca7a6; }
+.session-activity-list { list-style: none; }
+.session-activity-list li { display: flex; gap: 12px; padding: 13px 18px; border-bottom: 1px solid #3d494a; }
+.activity-marker { flex: 0 0 auto; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--telemetry-accent); }
+.session-activity-list strong { display: block; color: #e7e8e2; font-size: 12px; font-weight: 600; }
+.session-activity-list small { display: block; margin-top: 4px; color: #8d9998; font-size: 10px; line-height: 1.4; }
+.session-load-more { display: block; width: calc(100% - 36px); margin: 15px 18px; padding: 10px; border: 1px solid #536161; border-radius: 4px; background: #303b3d; color: #e7e8e2; font-size: 11px; font-weight: 700; }
+.session-load-more:hover { background: #455356; }
+.session-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 18px 21px; }
+.session-tools div { padding: 11px; border: 1px solid #3d494a; border-radius: 4px; }
+.session-tools strong, .session-tools span { display: block; font-size: 11px; }
+.session-tools span { margin-top: 5px; color: #8d9998; }
 @media (max-width: 700px) {
   .app-header { top: 14px; left: 14px; padding: 8px 10px 8px 8px; gap: 8px; }
   .brand-mark { width: 35px; height: 35px; transform: scale(.76); transform-origin: top left; margin-right: -8px; margin-bottom: -8px; }
@@ -187,6 +235,8 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
   .telemetry-board-label { min-width: 95px; padding: 5px 7px; }
   .telemetry-board-label strong { font-size: 12px; }
   .telemetry-board-label span, .telemetry-board-label small { font-size: 7px; }
+  .account-breakdown, .session-breakdown, .session-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .session-detail-columns { grid-template-columns: 1fr; }
 }
 @media (max-height: 500px) {
   .world-footer-left { bottom: 10px; }

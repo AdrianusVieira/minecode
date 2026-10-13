@@ -1060,7 +1060,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     {unavailable && <div className="world-unavailable">This browser cannot start the 3D village. Try enabling WebGL.</div>}
     <div className="world-label-layer">
       {(['claude', 'codex'] as const).map((source) => <button className={`telemetry-board-label ${source}`} key={source} data-world-label="board" data-world-id={source} type="button" onClick={() => callbacksRef.current.onOpenTelemetry(source)} aria-label={`Open ${source === 'claude' ? 'Claude Code' : 'Codex'} telemetry`}>
-        <span>VILLAGE TELEMETRY</span><strong>{source === 'claude' ? 'Claude Code' : 'Codex'}</strong><small>Open dashboard ↗</small>
+        <span>VILLAGE TELEMETRY</span><strong>{source === 'claude' ? 'Claude Code' : 'Codex'}</strong><small>{source === 'claude' ? 'Usage & accounts ↗' : 'Open dashboard ↗'}</small>
       </button>)}
       {projects.map((project) => <button className={`building-label ${project.source === 'codex' ? 'codex' : ''} ${project.kind === 'Commons' ? 'commons' : ''} ${project.id === activeProjectId ? 'is-focused' : ''}`} key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => callbacksRef.current.onFocusProject(project.id)} type="button">
         <span className="building-label-kind">{project.source} · {project.kind}</span><strong>{project.name}</strong><small>{project.sessions.length} {project.sessions.length === 1 ? 'session' : 'sessions'}</small>
