@@ -13,6 +13,7 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .building-label { z-index: 3; min-width: 120px; max-width: 185px; padding: 8px 13px 9px; border: 1px solid #8e6950; border-radius: 5px; background: #faf1d9; box-shadow: 0 3px 0 #9d7655, 0 7px 15px #37352b35; color: #3d392e; text-align: center; white-space: nowrap; }
 .building-label::after { content: ''; position: absolute; left: 50%; top: 100%; width: 9px; height: 9px; border-right: 1px solid #8e6950; border-bottom: 1px solid #8e6950; background: #faf1d9; transform: translate(-50%, 3px) rotate(45deg); }
 .building-label:hover, .building-label:focus-visible { background: #fff9e8; transform: translate(-50%, calc(-100% - 3px)); }
+.building-label.is-focused { border-color: #a9713e; box-shadow: 0 3px 0 #9d7655, 0 0 0 3px #ffe1a0, 0 9px 22px #37352b45; }
 .building-label-kind { display: block; margin-bottom: 2px; color: #997255; font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
 .building-label strong { display: block; overflow: hidden; font-family: 'Fraunces', Georgia, serif; font-size: 16px; font-weight: 600; text-overflow: ellipsis; }
 .building-label small { display: block; margin-top: 2px; color: #8e876f; font-size: 10px; }
@@ -22,6 +23,7 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .building-label.codex { border-color: #34444a; background: #3e4b4ded; box-shadow: 0 3px 0 #263337, 0 7px 15px #252f304a; color: #f5ecdf; }
 .building-label.codex::after { border-color: #34444a; background: #3e4b4d; }
 .building-label.codex:hover, .building-label.codex:focus-visible { background: #526164; }
+.building-label.codex.is-focused { border-color: #d9a271; box-shadow: 0 3px 0 #263337, 0 0 0 3px #ffe1a0, 0 9px 22px #252f3055; }
 .building-label.codex .building-label-kind { color: #dfae8d; }
 .building-label.codex small { color: #c5c8bd; }
 .building-label.commons { border-color: #a47c43; background: #fff3d2; box-shadow: 0 3px 0 #ac8049, 0 7px 17px #37352b38; }
@@ -35,7 +37,7 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .session-status { display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: #adad96; vertical-align: 1px; }
 .session-status.recent { background: #5d9475; box-shadow: 0 0 0 3px #71aa7945; }
 .session-status.unknown { background: #adad96; }
-.coffee-signal { position: absolute; z-index: 4; transform: translate(-50%, -100%); padding: 4px 7px; border: 1px solid #aa784c; border-radius: 12px; background: #fff4d7f2; box-shadow: 0 2px 7px #4d382b38; color: #70462c; font-size: 10px; font-weight: 700; white-space: nowrap; pointer-events: none; }
+.coffee-signal { position: absolute; z-index: 4; transform: translate(-50%, -100%); padding: 3px 5px; border: 1px solid #aa784c; border-radius: 12px; background: #fff4d7f2; box-shadow: 0 2px 7px #4d382b38; color: #70462c; font-size: 11px; line-height: 1; pointer-events: none; }
 .app-header, .top-actions, .world-intro, .world-footer-left, .world-footer-center, .map-controls, .session-panel, .guide-popover, .data-warning { position: absolute; z-index: 5; }
 .app-header { top: 26px; left: 31px; display: flex; gap: 13px; align-items: center; padding: 11px 15px 11px 11px; border: 1px solid #cbbf9f; border-radius: 8px; background: #fbf6e8ed; box-shadow: 0 5px 20px #43452f25; backdrop-filter: blur(12px); }
 .brand-mark { position: relative; width: 46px; height: 46px; border-radius: 5px; background: #748b6e; }

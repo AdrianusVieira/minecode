@@ -4,7 +4,7 @@ A navigable, blocky world for Claude Code and Codex sessions. Claude's workshops
 
 ![Minecode in sample mode, showing both districts and their communal halls](docs/village-preview.jpg)
 
-The world fills the browser viewport. Drag to pan, Shift-drag or right-drag to rotate and tilt, and scroll or pinch to zoom. Select a building name to focus it, and select a character to inspect its session. The map controls rotate, zoom, and fit the whole village. Keyboard shortcuts: `0` to fit all, `+` and `-` to zoom, `Q` and `E` to rotate, and `Escape` to close the details panel. A coffee badge appears above a character while they take a sip.
+The world fills the browser viewport. Drag or use the arrow keys to pan, Shift-drag or right-drag to rotate and tilt, and scroll or pinch to zoom. Select a building name to focus it, and select a character to inspect its session. The map controls rotate, zoom, and fit the whole village. Keyboard shortcuts: arrow keys to pan, `0` to fit all, `Q` and `E` to rotate, and `Escape` to close the details panel. A coffee badge appears above a character while they take a sip.
 
 ## Try it
 
