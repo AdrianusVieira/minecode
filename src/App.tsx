@@ -47,6 +47,8 @@ export default function App() {
       if (event.key === '0') { scene.current?.fit(); setFocusedId(null) }
       if (event.key === '+' || event.key === '=') scene.current?.zoom(1)
       if (event.key === '-') scene.current?.zoom(-1)
+      if (event.key.toLowerCase() === 'q') scene.current?.rotate(-1)
+      if (event.key.toLowerCase() === 'e') scene.current?.rotate(1)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -73,7 +75,7 @@ export default function App() {
     {!snapshot && <div className="loading-world"><div className="loading-mark">✦</div><p>{error || 'Preparing the village…'}</p><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
     <header className="app-header">
       <div className="brand-mark" aria-hidden="true"><span className="brand-roof" /><span className="brand-home" /><span className="brand-door" /></div>
-      <div className="brand-copy"><span className="brand-eyebrow">A WORLD FOR WORK IN PROGRESS</span><h1>The Village</h1></div>
+      <div className="brand-copy"><span className="brand-eyebrow">A WORLD FOR WORK IN PROGRESS</span><h1>Minecode</h1></div>
     </header>
     <div className="top-actions">
       {snapshot && <span className="source-badge" title={snapshot.notices?.join(' ')}><span className="source-dot" />{snapshot.source === 'sample' ? 'Sample village' : snapshot.source === 'telemetry' ? 'Live telemetry' : 'Local file'}{snapshot.notices?.length ? ' ·' : ''}</span>}
@@ -82,24 +84,27 @@ export default function App() {
     </div>
     {showGuide && <div className="guide-popover" role="dialog" aria-label="How to explore">
       <div className="popover-heading"><strong>Explore the village</strong><button type="button" aria-label="Close guide" onClick={() => setShowGuide(false)}>×</button></div>
-      <p>Drag to pan. Scroll or pinch to zoom. Cross the river between the Claude village and Codex outpost. Each bank has a hall for sessions without a project. Select a building name to move closer, then select a seated character for session details.</p>
-      <p className="guide-shortcuts">Keyboard: <kbd>0</kbd> fit all · <kbd>+</kbd> / <kbd>−</kbd> zoom · <kbd>Esc</kbd> close</p>
+      <p>Drag to pan. Shift-drag or right-drag to rotate and tilt. Scroll or pinch to zoom. Cross the river between the Claude village and Codex outpost. Each bank has a hall for sessions without a project. Select a building name to move closer, then select a character for session details.</p>
+      <p className="guide-shortcuts">Keyboard: <kbd>0</kbd> fit all · <kbd>+</kbd> / <kbd>−</kbd> zoom · <kbd>Q</kbd> / <kbd>E</kbd> rotate · <kbd>Esc</kbd> close</p>
     </div>}
-    <div className="world-intro"><span className="intro-line" />Two banks. One world. Every session has a seat.</div>
+    <div className="world-intro"><span className="intro-line" />Two banks. One world. Every session has a place.</div>
     <div className="world-footer-left">
-      {focusedProject ? <div className="focus-caption"><span>YOU ARE VISITING</span><strong>{focusedProject.name}</strong><button type="button" onClick={fit}>See all places <span aria-hidden="true">↗</span></button></div> : <div className="map-caption"><span className="map-caption-icon">⌖</span><span>Drag to wander<br /><small>Scroll to look closer</small></span></div>}
+      {focusedProject ? <div className="focus-caption"><span>YOU ARE VISITING</span><strong>{focusedProject.name}</strong><button type="button" onClick={fit}>See all places <span aria-hidden="true">↗</span></button></div> : <div className="map-caption"><span className="map-caption-icon">⌖</span><span>Drag to wander<br /><small>Shift-drag to rotate · Scroll to zoom</small></span></div>}
     </div>
     <div className="world-footer-center" aria-live="polite">{projects.length} {projects.length === 1 ? 'place' : 'places'} <span>·</span> {groupCount(projects)} {groupCount(projects) === 1 ? 'session' : 'sessions'}</div>
     <div className="map-controls" aria-label="Map controls">
       <button type="button" onClick={() => scene.current?.zoom(1)} aria-label="Zoom in" title="Zoom in">+</button>
       <button type="button" onClick={() => scene.current?.zoom(-1)} aria-label="Zoom out" title="Zoom out">−</button>
       <span className="control-divider" />
+      <button type="button" className="rotate-button" onClick={() => scene.current?.rotate(-1)} aria-label="Rotate left" title="Rotate left (Q)">⟲</button>
+      <button type="button" className="rotate-button" onClick={() => scene.current?.rotate(1)} aria-label="Rotate right" title="Rotate right (E)">⟳</button>
+      <span className="control-divider" />
       <button type="button" className="fit-button" onClick={fit} title="Fit all places">Fit all</button>
     </div>
     {selected && <aside className="session-panel" aria-label="Session details">
       <div className="panel-top"><span>{selected.project.source.toUpperCase()} SESSION / {selected.project.kind.toUpperCase()}</span><button type="button" onClick={() => setSelectedId(null)} aria-label="Close session details">×</button></div>
       <div className={`panel-portrait ${selected.project.source === 'codex' ? 'codex' : ''}`} aria-hidden="true"><span className={`portrait-orbit ${selected.session.status}`}><span className="portrait-body" /><span className="portrait-head"><span className="portrait-eyes" /><span className="portrait-nose" /></span></span></div>
-      <p className="panel-kicker">SEATED AT {selected.project.name.toUpperCase()}</p>
+      <p className="panel-kicker">AT {selected.project.name.toUpperCase()}</p>
       <h2>{selected.session.name}</h2>
       <div className="panel-activity"><span className={`activity-dot ${selected.session.status}`} /><div><small>LATEST ACTIVITY</small><strong>{selected.session.activity}</strong></div></div>
       <dl className="panel-details"><div><dt>Last observed</dt><dd>{snapshot?.source === 'sample' ? 'Sample activity' : timeAgo(selected.session.updatedAt)}</dd></div><div><dt>Agent</dt><dd>{selected.project.source === 'codex' ? 'Codex' : 'Claude Code'}</dd></div><div><dt>Data</dt><dd>{snapshot?.source === 'sample' ? 'Illustrative session' : snapshot?.source === 'telemetry' ? 'Local telemetry' : 'Local session snapshot'}</dd></div></dl>

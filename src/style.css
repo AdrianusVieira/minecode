@@ -35,6 +35,7 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .session-status { display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: #adad96; vertical-align: 1px; }
 .session-status.recent { background: #5d9475; box-shadow: 0 0 0 3px #71aa7945; }
 .session-status.unknown { background: #adad96; }
+.coffee-signal { position: absolute; z-index: 4; transform: translate(-50%, -100%); padding: 4px 7px; border: 1px solid #aa784c; border-radius: 12px; background: #fff4d7f2; box-shadow: 0 2px 7px #4d382b38; color: #70462c; font-size: 10px; font-weight: 700; white-space: nowrap; pointer-events: none; }
 .app-header, .top-actions, .world-intro, .world-footer-left, .world-footer-center, .map-controls, .session-panel, .guide-popover, .data-warning { position: absolute; z-index: 5; }
 .app-header { top: 26px; left: 31px; display: flex; gap: 13px; align-items: center; padding: 11px 15px 11px 11px; border: 1px solid #cbbf9f; border-radius: 8px; background: #fbf6e8ed; box-shadow: 0 5px 20px #43452f25; backdrop-filter: blur(12px); }
 .brand-mark { position: relative; width: 46px; height: 46px; border-radius: 5px; background: #748b6e; }
@@ -66,6 +67,7 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .world-footer-center span { margin: 0 5px; color: #aa9c80; }
 .map-controls { right: 30px; bottom: 26px; display: flex; align-items: center; gap: 2px; padding: 5px; border: 1px solid #cbbf9f; border-radius: 7px; background: #fbf6e8ed; box-shadow: 0 5px 20px #43452f25; backdrop-filter: blur(12px); }
 .map-controls button { min-width: 33px; height: 31px; border: 0; border-radius: 4px; background: transparent; color: #554d3d; font-size: 20px; line-height: 1; }
+.map-controls .rotate-button { font-size: 24px; }
 .map-controls .fit-button { padding: 0 10px; font-size: 11px; font-weight: 700; }
 .control-divider { width: 1px; height: 20px; margin: 0 3px; background: #d7cab0; }
 .guide-popover { top: 73px; right: 30px; width: min(320px, calc(100vw - 30px)); padding: 17px 18px; border: 1px solid #cbbf9f; border-radius: 8px; background: #fbf6e8; box-shadow: 0 15px 35px #34372a30; font-size: 12px; line-height: 1.55; }
