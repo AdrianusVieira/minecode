@@ -92,7 +92,7 @@ const server = createServer(async (request, response) => {
     } catch (error) { console.error('Session view failed:', error); sendJson(response, { error: 'Session data is unavailable.' }, 503) }
     return
   }
-  if (pathname !== '/' && !pathname.startsWith('/assets/')) { sendJson(response, { error: 'Not found' }, 404); return }
+  if (pathname !== '/' && pathname !== '/minecode-mark.svg' && !pathname.startsWith('/assets/')) { sendJson(response, { error: 'Not found' }, 404); return }
   const target = pathname === '/' ? join(dist, 'index.html') : resolve(dist, pathname.slice(1))
   const pathFromDist = relative(dist, target)
   if (pathFromDist === '..' || pathFromDist.startsWith(`..${sep}`) || pathFromDist.startsWith(sep)) { sendJson(response, { error: 'Not found' }, 404); return }

@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && tsc --noEmit --project tsconfig.server.json && vite build",
     "start": "npm run build && npm run server",
     "server": "tsx server/index.ts",
-    "test": "tsx --test server/*.test.ts",
+    "test": "tsx --test server/*.test.ts tests/*.test.ts",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

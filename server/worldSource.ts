@@ -6,20 +6,20 @@ import type { TelemetryPeriod } from '../src/telemetryData.js'
 
 const examples: Project[] = [
   { id: 'village-hall', name: 'Village Hall', kind: 'Commons', source: 'claude', sessions: [
-    { id: 'sample-village-hall-1', name: 'Explore an idea', updatedAt: null, activity: 'Thinking together', status: 'quiet' },
-    { id: 'sample-village-hall-2', name: 'Sketch a direction', updatedAt: null, activity: 'Reviewing options', status: 'recent' },
+    { id: 'sample-village-hall-1', name: 'Explore an idea', updatedAt: null, activity: 'Thinking together', status: 'quiet', tokens: 520_000 },
+    { id: 'sample-village-hall-2', name: 'Sketch a direction', updatedAt: null, activity: 'Reviewing options', status: 'recent', tokens: 12_000 },
   ] },
   { id: 'hearth', name: 'Hearth & Home', kind: 'Workshop', source: 'claude', sessions: [
-    { id: 'sample-hearth-1', name: 'Shape the first welcome', updatedAt: null, activity: 'Sketching the arrival flow', status: 'recent' },
+    { id: 'sample-hearth-1', name: 'Shape the first welcome', updatedAt: null, activity: 'Sketching the arrival flow', status: 'recent', tokens: 88_000 },
     { id: 'sample-hearth-2', name: 'Refine the warm palette', updatedAt: null, activity: 'Choosing materials', status: 'quiet' },
     { id: 'sample-hearth-3', name: 'Plan the courtyard', updatedAt: null, activity: 'Reviewing the plan', status: 'quiet' },
   ] },
   { id: 'fieldnotes', name: 'Fieldnotes', kind: 'Library', source: 'claude', sessions: [
-    { id: 'sample-field-1', name: 'Map the knowledge base', updatedAt: null, activity: 'Reading notes', status: 'recent' },
+    { id: 'sample-field-1', name: 'Map the knowledge base', updatedAt: null, activity: 'Reading notes', status: 'recent', tokens: 1_200_000 },
     { id: 'sample-field-2', name: 'Organize research trails', updatedAt: null, activity: 'Sorting references', status: 'quiet' },
   ] },
   { id: 'lantern', name: 'Signal Keep', kind: 'Outpost', source: 'codex', sessions: [
-    { id: 'sample-lantern-1', name: 'Prototype the signal', updatedAt: null, activity: 'Building a prototype', status: 'recent' },
+    { id: 'sample-lantern-1', name: 'Prototype the signal', updatedAt: null, activity: 'Building a prototype', status: 'recent', tokens: 310_000 },
     { id: 'sample-lantern-2', name: 'Test the watch', updatedAt: null, activity: 'Trying interactions', status: 'quiet' },
   ] },
   { id: 'outpost-hall', name: 'Outpost Hall', kind: 'Commons', source: 'codex', sessions: [
@@ -63,7 +63,9 @@ export function parseWorldFile(value: unknown): Project[] {
       if (date !== null && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(date) || Number.isNaN(Date.parse(date)))) throw new Error(`${sessionId}.updatedAt must be an ISO timestamp`)
       const status = session.status
       if (status !== 'recent' && status !== 'quiet' && status !== 'unknown') throw new Error(`${sessionId}.status must be recent, quiet, or unknown`)
-      return { id: sessionId, name: nonEmpty(session.name, `${sessionId}.name`), updatedAt: date, activity: nonEmpty(session.activity, `${sessionId}.activity`), status }
+      const tokens = session.tokens
+      if (tokens !== undefined && (typeof tokens !== 'number' || !Number.isFinite(tokens) || tokens < 0)) throw new Error(`${sessionId}.tokens must be a non-negative number`)
+      return { id: sessionId, name: nonEmpty(session.name, `${sessionId}.name`), updatedAt: date, activity: nonEmpty(session.activity, `${sessionId}.activity`), status, ...(tokens === undefined ? {} : { tokens }) }
     })
     const source = raw.source === undefined ? 'claude' : raw.source
     if (source !== 'claude' && source !== 'codex') throw new Error(`${id}.source must be claude or codex`)

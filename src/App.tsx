@@ -8,6 +8,7 @@ import PanelDisplayControls, { type PanelTheme } from './PanelDisplayControls'
 import PanelResizeHandle from './PanelResizeHandle'
 import type { TelemetrySource } from './telemetryData'
 import TimeRangePicker, { useTimeRange } from './TimeRangePicker'
+import { worldClock } from './worldClock'
 
 function timeAgo(value: string | null): string {
   if (!value) return 'No timestamp supplied'
@@ -44,6 +45,9 @@ export default function App() {
   const [telemetrySource, setTelemetrySource] = useState<TelemetrySource | null>(null)
   const [panelTheme, setPanelTheme] = useState<PanelTheme>(savedTheme)
   const [panelWidth, setPanelWidth] = useState(savedWidth)
+  const [worldTime, setWorldTime] = useState(() => worldClock(Date.now()))
+
+  useEffect(() => { const timer = window.setInterval(() => setWorldTime(worldClock(Date.now())), 5_000); return () => window.clearInterval(timer) }, [])
 
   useEffect(() => { try { localStorage.setItem('minecode.panel.theme', panelTheme) } catch { /* Storage can be unavailable. */ } }, [panelTheme])
   useEffect(() => { try { localStorage.setItem('minecode.panel.width', String(panelWidth)) } catch { /* Storage can be unavailable. */ } }, [panelWidth])
@@ -125,10 +129,11 @@ export default function App() {
     {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId || exilingId} exilingId={exilingId} focusedId={focusedId} lockSessionFocus={sessionFocusOpen || !!exilingId} onSelectSession={(id) => { if (!exilingId) setSelectedId(id) }} onFocusProject={focusProject} onOpenTelemetry={(source) => { setSelectedId(null); setShowGuide(false); setTelemetrySource(source) }} />}
     {!snapshot && <div className="loading-world"><div className="loading-mark">✦</div><p>{error || 'Preparing the village…'}</p><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
     <header className="app-header">
-      <div className="brand-mark" aria-hidden="true"><span className="brand-roof" /><span className="brand-home" /><span className="brand-door" /></div>
+      <img className="brand-mark" src="/minecode-mark.svg" alt="" />
       <div className="brand-copy"><span className="brand-eyebrow">A WORLD FOR WORK IN PROGRESS</span><h1>Minecode</h1></div>
     </header>
     <div className="top-actions">
+      <span className="world-weather" title="The village runs on its own clock: a 29 minute day and 43 minute seasons.">{worldTime.season} <span>·</span> {worldTime.daylight > 0.35 ? 'Day' : 'Night'}</span>
       {snapshot && <span className="source-badge" title={snapshot.notices?.join(' ')}><span className="source-dot" />{snapshot.source === 'sample' ? 'Sample village' : snapshot.source === 'telemetry' ? 'Live telemetry' : 'Local file'}{snapshot.notices?.length ? ' ·' : ''}</span>}
       {snapshot?.source === 'telemetry' && <div className="period-control"><TimeRangePicker control={worldRange} compact /></div>}
       <button type="button" className="round-action" aria-label="How to explore" title="How to explore" onClick={() => setShowGuide((value) => !value)}>?</button>
@@ -138,7 +143,6 @@ export default function App() {
       <p>Drag or use the arrow keys to pan. Shift-drag or right-drag to rotate and tilt. Scroll or pinch to zoom. Cross the river between the Claude village and Codex outpost. Select a telemetry board for each district’s usage dashboard. Select a building name to move closer, then select a character for session details.</p>
       <p className="guide-shortcuts">Keyboard: <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> pan · <kbd>0</kbd> fit all · <kbd>Q</kbd> / <kbd>E</kbd> rotate · <kbd>Esc</kbd> close</p>
     </div>}
-    <div className="world-intro"><span className="intro-line" />Two banks. One world. Every session has a place.</div>
     <div className="world-footer-left">
       {focusedProject ? <div className="focus-caption"><span>YOU ARE VISITING</span><strong>{focusedProject.name}</strong><button type="button" onClick={fit}>See all places <span aria-hidden="true">↗</span></button></div> : <div className="map-caption"><span className="map-caption-icon">⌖</span><span>Drag or use arrow keys<br /><small>Shift-drag to rotate · Scroll to zoom</small></span></div>}
     </div>
