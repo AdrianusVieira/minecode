@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Minecode">
+  <rect width="64" height="64" rx="12" fill="#233d42"/>
+  <path d="M5 14 27 5l11 6-22 9z" fill="#83a876"/>
+  <path d="m5 14 11 6v31L5 46z" fill="#5f815e"/>
+  <path d="m16 20 22-9v31l-22 9z" fill="#759a6c"/>
+  <path d="m38 11 21 9v28l-21-6z" fill="#5d756c"/>
+  <path d="m16 51 22-9 21 6-22 11z" fill="#476c69"/>
+  <path d="m22 19 12-5 15 7-12 5z" fill="#b66d4b"/>
+  <path d="m22 19 15 7v14l-15-7z" fill="#e7d8ae"/>
+  <path d="m37 26 12-5v14l-12 5z" fill="#c6b88e"/>
+  <path d="m27 28 6 2v8l-6-2z" fill="#684f3a"/>
+  <path d="m37 41-22 9 7 4 22-9z" fill="#70b5bf"/>
+  <path d="m17 43 16-7 5 2-16 7z" fill="#d7bd83"/>
+  <path d="m10 12 3-4 3 4-3 4z" fill="#f3cf83"/>
+</svg>

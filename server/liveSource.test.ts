@@ -7,6 +7,7 @@ const now = Date.parse('2026-10-12T12:00:00Z')
 test('maps only recent telemetry fields into Claude buildings', () => {
   const result = mapSessions('claude', [
     { id: 'abc', title: 'Plan launch', project: '/work/the-village', lastSeen: now - 60_000,
+      inputTokens: 100, outputTokens: 30, cacheReadTokens: 400, cacheCreationTokens: 20,
       recentEvents: [{ name: 'assistant_response', prompt: 'private text' }], prompt: 'private text' },
     { id: 'old', title: 'Old session', project: 'Archive', lastSeen: now - 3 * 86_400_000 },
   ], 2, now)
@@ -15,6 +16,7 @@ test('maps only recent telemetry fields into Claude buildings', () => {
   assert.equal(result.projects[0].sessions[0].name, 'Plan launch')
   assert.equal(result.projects[0].sessions[0].activity, 'A response was completed')
   assert.equal(result.projects[0].sessions[0].status, 'recent')
+  assert.equal(result.projects[0].sessions[0].tokens, 550)
   assert.equal(JSON.stringify(result).includes('private text'), false)
 })
 
@@ -81,4 +83,11 @@ test('Codex village omits signal-only IDs and applies the selected time window',
     { id: 'old', hasUserPrompt: true, prompts: 1, lastSeen: now - 3 * 86_400_000 },
   ], 2, now)
   assert.deepEqual(result.projects.flatMap((project) => project.sessions.map((session) => session.externalId)), ['worked', 'continued'])
+})
+
+test('maps observed Codex tokens to a character without exposing private events', () => {
+  const result = mapSessions('codex', [{ id: 'worked', hasUserPrompt: true, prompts: 1, lastSeen: now,
+    observedTokens: 125_000, recentEvents: [{ name: 'tool_result', secret: 'do not send' }] }], 2, now)
+  assert.equal(result.projects[0].sessions[0].tokens, 125_000)
+  assert.equal(JSON.stringify(result).includes('do not send'), false)
 })

@@ -1,10 +1,14 @@
 # Minecode
 
-A navigable, blocky world for Claude Code and Codex sessions. Claude's workshops and Codex's outposts face each other across a river. Sessions have places at shared worktables; characters type, take coffee breaks, and sometimes step outside. Sessions without a project gather in the Village Hall or Outpost Hall.
+A navigable, blocky world for Claude Code and Codex sessions. Claude's workshops and Codex's outposts face each other across a river. Sessions have places at shared worktables. Each district has a farm and a cafeteria. Sessions without a project gather in the Village Hall or Outpost Hall.
 
 ![Minecode in sample mode, showing both districts and their communal halls](docs/village-preview.jpg)
 
-The world fills the browser viewport. Drag or use the arrow keys to pan, Shift-drag or right-drag to rotate and tilt, and scroll or pinch to zoom. Select a building name to focus it, and select a character to inspect its session usage, prompts, and activity. A straight path from each bridge end reaches a paved landing with an outdoor telemetry board before branching toward the buildings. Select a board to open that agent's usage dashboard in a side panel. The Claude Code board also has an Accounts view. The dashboard, account, and session panels share a light/dark switch. On desktop, drag the panel's left edge to set its width from 50% to 80%; the width and theme are saved in the browser. While a live session panel is open, the camera follows its character in the visible map area. The village and panels offer 24 hours, 48 hours, 7, 30, and 90 days, all time, or a custom range of local calendar days. A panel opens with the village's selected range. Data refreshes every 15 seconds. The map controls rotate, zoom, and fit the whole village. Keyboard shortcuts: arrow keys to pan, `0` to fit all, `Q` and `E` to rotate, and `Escape` to close the details panel. A coffee badge appears above a character while they take a sip.
+The world fills the browser viewport. Drag or use the arrow keys to pan, Shift-drag or right-drag to rotate and tilt, and scroll or pinch to zoom. Select a building name to focus it, and select a character to inspect its session usage, prompts, and activity. A straight path from each bridge end reaches a paved landing with an outdoor telemetry board before branching toward the buildings. Select a board to open that agent's usage dashboard in a side panel. The Claude Code board also has an Accounts view. The dashboard, account, and session panels share a light/dark switch. On desktop, drag the panel's left edge to set its width from 50% to 80%; the width and theme are saved in the browser. While a live session panel is open, the camera follows its character in the visible map area. The village and panels offer 24 hours, 48 hours, 7, 30, and 90 days, all time, or a custom range of local calendar days. A panel opens with the village's selected range. Data refreshes every 15 seconds. The map controls rotate, zoom, and fit the whole village. Keyboard shortcuts: arrow keys to pan, `0` to fit all, `Q` and `E` to rotate, and `Escape` to close the details panel.
+
+The territory has its own automatic 29-minute day/night cycle and four 43-minute seasons. These lengths shift their phases against the real 24-hour day, so the same local time does not always show the same light or season. Seasonal ground, foliage, crops, sky, and lighting change gradually. A character's hair greys and a beard grows with the session's observed token total. Characters sit while activity is observed; after three minutes without a new event, they leave for farm work, coffee at the cafeteria, or walks with fresh random destinations and dwell times. Daylight and season influence the activity weights; a character does not choose the same outing twice in a row. Roaming destinations are sampled continuously along the village paths. New activity sends them back to their desk. The activity feed is observational, so the three-minute rule is based on the latest received event, not process state.
+
+Village appearance and behavior use a versioned `mulberry32-v1` simulation generator. A fresh 32-bit seed comes from browser crypto and remains in session storage across reloads. Visit `?newRun=1` to make a new seed; Minecode places it in the URL. Save that URL or use `?seed=NUMBER` to replay the same terrain, appearances, and per-character random draws. Live telemetry and elapsed time can still change which characters appear and when they act, so replaying the seed alone does not replay an entire live session timeline.
 
 ## Try it
 
@@ -62,7 +66,8 @@ VILLAGE_DATA_FILE=/absolute/path/to/world.json npm run dev
           "name": "Session name",
           "updatedAt": "2026-01-01T12:00:00Z",
           "activity": "Latest observed activity",
-          "status": "recent"
+          "status": "recent",
+          "tokens": 12000
         }
       ]
     }
@@ -70,7 +75,7 @@ VILLAGE_DATA_FILE=/absolute/path/to/world.json npm run dev
 }
 ```
 
-`source` is `claude` or `codex` and places the building on its corresponding bank; omitting it defaults to `claude`. Use `kind: "Commons"` for a communal hall. `updatedAt` may be `null`. `status` is `recent`, `quiet`, or `unknown`; it describes a supplied signal, not whether a process is running. Project and session IDs must be unique.
+`source` is `claude` or `codex` and places the building on its corresponding bank; omitting it defaults to `claude`. Use `kind: "Commons"` for a communal hall. `updatedAt` may be `null`. `status` is `recent`, `quiet`, or `unknown`; it describes a supplied signal, not whether a process is running. Optional `tokens` is a non-negative total for visual aging. Project and session IDs must be unique.
 
 ## Development
 

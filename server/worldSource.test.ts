@@ -20,3 +20,11 @@ test('rejects duplicate session identities across buildings', () => {
     { id: 'b', name: 'B', kind: 'Workshop', sessions: [{ id: 'same', name: 'Two', activity: 'Idle', status: 'quiet' }] },
   ] }), /Duplicate session id/)
 })
+
+test('validates optional token totals for character aging', () => {
+  const project = { id: 'p', name: 'P', kind: 'Workshop', sessions: [
+    { id: 's', name: 'S', activity: 'Working', status: 'recent', tokens: 12_000 },
+  ] }
+  assert.equal(parseWorldFile({ projects: [project] })[0].sessions[0].tokens, 12_000)
+  assert.throws(() => parseWorldFile({ projects: [{ ...project, sessions: [{ ...project.sessions[0], tokens: -1 }] }] }), /tokens must be a non-negative number/)
+})

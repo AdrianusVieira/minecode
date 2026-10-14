@@ -1,23 +1,31 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import * as THREE from 'three'
-import type { Project } from './worldData'
+import { activityIsCurrent, type Project } from './worldData'
 import type { TelemetrySource } from './telemetryData'
+import { worldClock } from './worldClock'
+import { between, createRandom, deriveSeed, getRunSeed, weightedChoice, type RandomSource } from './random'
 
 export type PanKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
 export type WorldControls = { fit: () => void; zoom: (direction: number) => void; rotate: (direction: number) => void; focusProject: (id: string) => void; setPanKey: (key: PanKey, pressed: boolean) => void; clearPanKeys: () => void }
 type Props = { projects: Project[]; selectedId: string | null; exilingId: string | null; focusedId: string | null; lockSessionFocus: boolean; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void; onOpenTelemetry: (source: TelemetrySource) => void }
 type Place = { point: THREE.Vector3; width: number }
-type Routine = { desk: number; travel: number; linger: number; settle: number; period: number; phase: number; coffeePeriod: number; coffeeDuration: number; coffeePhase: number; strideSpeed: number }
+type Destination = 'desk' | 'farm' | 'coffee' | 'roam'
+type RoamPath = { fromX: number; fromZ: number; toX: number; toZ: number; weight: number }
 type PersonRig = {
   person: THREE.Group; body: THREE.Group; head: THREE.Group
   leftArm: THREE.Group; rightArm: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group
-  cup: THREE.Group; tableCup: THREE.Group; ring: THREE.Mesh; seatYaw: number; route: THREE.Vector3[]
-  status: Project['sessions'][number]['status']; anchor: THREE.Vector3; origin: THREE.Vector3; routine: Routine; sipping: boolean
+  cup: THREE.Group; hoe: THREE.Group; tableCup: THREE.Group; ring: THREE.Mesh; seatYaw: number; route: THREE.Vector3[]
+  updatedAt: string | null; sampleActive: boolean
+  anchor: THREE.Vector3; origin: THREE.Vector3; path: THREE.Vector3[]; pathIndex: number
+  destination: Destination; mode: 'seated' | 'walking' | 'dwelling'; nextDecisionAt: number
+  farm: THREE.Vector3; cafe: THREE.Vector3; streetX: number; worldSize: number; roamPaths: RoamPath[]; random: RandomSource
+  walkSpeed: number; motionPhase: number
+  hairMaterial: THREE.MeshLambertMaterial; baseHair: THREE.Color; beard: THREE.Mesh; age: number
 }
 type Runtime = {
   camera: THREE.OrthographicCamera; target: THREE.Vector3; desiredTarget: THREE.Vector3
   desiredZoom: number; overviewZoom: number; yaw: number; desiredYaw: number; pitch: number; desiredPitch: number; buildings: Map<string, Place>
-  seats: Map<string, THREE.Vector3>; rigs: Map<string, PersonRig>; focusFrames: Map<string, THREE.Group>; boards: Map<TelemetrySource, THREE.Vector3>; ripples: THREE.Mesh[]
+  seats: Map<string, THREE.Vector3>; rigs: Map<string, PersonRig>; focusFrames: Map<string, THREE.Group>; boards: Map<TelemetrySource, THREE.Vector3>; facilities: Map<string, THREE.Vector3>; ripples: THREE.Mesh[]
 }
 
 const colors = {
@@ -64,6 +72,7 @@ const materials = {
   focus: new THREE.MeshBasicMaterial({ color: 0xffd48b }),
 }
 const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xffdc86, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
+const worldSeed = getRunSeed()
 
 function box(parent: THREE.Object3D, w: number, h: number, d: number, material: THREE.Material, x: number, y: number, z: number): THREE.Mesh {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material)
@@ -88,12 +97,6 @@ function addMug(parent: THREE.Object3D, x: number, y: number, z: number, codex: 
     box(mug, 0.035, 0.15, 0.035, materials.steam, 0.06, 0.37, 0.02).castShadow = false
   }
   return mug
-}
-
-function hash(value: string): number {
-  let result = 2166136261
-  for (const letter of value) result = Math.imul(result ^ letter.charCodeAt(0), 16777619)
-  return result >>> 0
 }
 
 function addTree(parent: THREE.Object3D, x: number, z: number, size = 1): void {
@@ -136,12 +139,57 @@ function addGarden(parent: THREE.Object3D, x: number, z: number, seed: number): 
   }
 }
 
-function addPerson(parent: THREE.Group, id: string, x: number, z: number, faceBack: boolean, source: Project['source'], status: Project['sessions'][number]['status'], route: THREE.Vector3[], anchor: THREE.Vector3, origin: THREE.Vector3, tableCup: THREE.Group): PersonRig {
-  const seed = hash(id)
+function addFarm(scene: THREE.Scene, x: number, z: number, codex: boolean): void {
+  const farm = new THREE.Group()
+  farm.position.set(x, 0, z)
+  scene.add(farm)
+  box(farm, 11.8, 0.12, 9.4, codex ? materials.outpostWood : materials.wood, 0, 0.03, 0)
+  for (let row = 0; row < 5; row++) {
+    const rowZ = -3.2 + row * 1.58
+    box(farm, 10.4, 0.14, 0.86, materials.soil, 0, 0.16, rowZ)
+    for (let column = 0; column < 10; column++) {
+      const cropX = -4.65 + column * 1.04
+      box(farm, 0.16, 0.52, 0.16, materials.crop, cropX, 0.51, rowZ)
+      box(farm, 0.38, 0.13, 0.22, materials.cropLight, cropX - 0.15, 0.72, rowZ)
+    }
+  }
+  for (const side of [-1, 1]) {
+    box(farm, 0.14, 0.76, 9.6, codex ? materials.outpostTimber : materials.timber, side * 5.85, 0.4, 0)
+    box(farm, 11.8, 0.76, 0.14, codex ? materials.outpostTimber : materials.timber, 0, 0.4, side * 4.7)
+  }
+  box(farm, 1.2, 0.75, 0.8, materials.wood, -4.6, 0.48, -4.3)
+  box(farm, 0.16, 2.4, 0.16, materials.timber, 4.5, 1.2, 4.2)
+  box(farm, 1.8, 0.7, 0.1, codex ? materials.outpostBanner : materials.parchment, 4.5, 2.3, 4.25)
+  box(farm, 1.3, 0.11, 0.12, materials.crop, 4.5, 2.35, 4.33)
+}
+
+function addCafeteria(scene: THREE.Scene, x: number, z: number, codex: boolean): void {
+  const cafe = new THREE.Group()
+  cafe.position.set(x, 0, z)
+  scene.add(cafe)
+  box(cafe, 7.2, 0.16, 7.8, codex ? materials.outpostStone : materials.stone, 0, 0.04, 0.8)
+  for (const side of [-1, 1]) for (const end of [-1, 1]) {
+    box(cafe, 0.24, 3.2, 0.24, codex ? materials.outpostTimber : materials.timber, side * 3.2, 1.65, end * 2.6)
+  }
+  box(cafe, 7.25, 0.22, 6.3, codex ? materials.outpostRoof : materials.roof[2], 0, 3.36, 0)
+  for (let stripe = 0; stripe < 5; stripe++) box(cafe, 1.4, 0.08, 0.75,
+    stripe % 2 ? materials.parchment : codex ? materials.outpostAccent : materials.roof[0], -2.8 + stripe * 1.4, 3.49, 2.76)
+  box(cafe, 5.2, 1.03, 0.7, codex ? materials.outpostWood : materials.wood, 0, 0.66, -1.4)
+  box(cafe, 5.4, 0.18, 0.95, codex ? materials.outpostWoodLight : materials.woodLight, 0, 1.25, -1.4)
+  for (const offset of [-1.7, 0, 1.7]) addMug(cafe, offset, 1.48, -1.35, codex, true)
+  box(cafe, 2.4, 0.76, 0.12, codex ? materials.outpostBanner : materials.parchment, 0, 2.55, 2.72)
+  box(cafe, 1.75, 0.12, 0.14, materials.coffee, 0, 2.55, 2.8)
+}
+
+function addPerson(parent: THREE.Group, session: Project['sessions'][number], x: number, z: number, faceBack: boolean, source: Project['source'], route: THREE.Vector3[], anchor: THREE.Vector3, origin: THREE.Vector3, tableCup: THREE.Group): PersonRig {
+  const id = session.id
+  const seed = deriveSeed(worldSeed, `appearance:${id}`)
+  const random = createRandom(deriveSeed(worldSeed, `movement:${id}`))
   const codex = source === 'codex'
   const cloth = codex ? materials.outpostCloth[seed % materials.outpostCloth.length] : materials.cloth[seed % materials.cloth.length]
   const skin = codex ? materials.outpostSkin[(seed >>> 5) % materials.outpostSkin.length] : materials.skin[(seed >>> 5) % materials.skin.length]
-  const hair = codex ? materials.outpostTimber : materials.hair[(seed >>> 9) % materials.hair.length]
+  const baseHair = (codex ? materials.outpostTimber : materials.hair[(seed >>> 9) % materials.hair.length]).color.clone()
+  const hair = mat(baseHair.getHex())
   const chair = codex ? materials.outpostWood : materials.wood
   const trim = codex ? materials.outpostStone : materials.wallShade
   const chairGroup = new THREE.Group()
@@ -176,6 +224,7 @@ function addPerson(parent: THREE.Group, id: string, x: number, z: number, faceBa
   box(head, 0.66, 0.61, 0.59, skin, 0, 0.22, 0)
   box(head, 0.72, 0.14, 0.64, hair, 0, 0.54, -0.01)
   box(head, 0.68, 0.18, 0.16, hair, 0, 0.43, -0.31)
+  const beard = box(head, 0.52, 0.21, 0.13, hair, 0, 0.035, 0.31)
   for (const side of [-1, 1]) box(head, 0.1, 0.15, 0.12, skin, side * 0.35, 0.23, 0)
   if (codex) {
     box(head, 0.77, 0.19, 0.73, materials.outpostBanner, 0, 0.61, 0)
@@ -210,6 +259,11 @@ function addPerson(parent: THREE.Group, id: string, x: number, z: number, faceBa
   }
   const cup = addMug(rightArm, 0, -0.54, 0.21, codex, true)
   cup.visible = false
+  const hoe = new THREE.Group()
+  rightArm.add(hoe)
+  box(hoe, 0.12, 1.0, 0.12, codex ? materials.outpostWoodLight : materials.woodLight, 0, -0.92, 0.28)
+  box(hoe, 0.74, 0.13, 0.2, codex ? materials.outpostStone : materials.stoneEdge, 0, -1.44, 0.28)
+  hoe.visible = false
   const leftLeg = new THREE.Group()
   const rightLeg = new THREE.Group()
   for (const [leg, side] of [[leftLeg, -1], [rightLeg, 1]] as const) {
@@ -223,16 +277,22 @@ function addPerson(parent: THREE.Group, id: string, x: number, z: number, faceBa
   ring.position.y = 0.035
   ring.visible = false
   person.add(ring)
-  const desk = 7 + (seed & 7)
-  const travel = 7 + ((seed >>> 3) & 3)
-  const linger = 5 + ((seed >>> 5) & 7)
-  const settle = 4 + ((seed >>> 8) & 7)
-  const period = desk + travel * 2 + linger + settle
-  const coffeePeriod = 18 + ((seed >>> 16) & 15)
-  const routine: Routine = { desk, travel, linger, settle, period, phase: (seed >>> 12) % period,
-    coffeePeriod, coffeeDuration: 5 + ((seed >>> 21) & 3), coffeePhase: (seed >>> 24) % coffeePeriod,
-    strideSpeed: 8 + ((seed >>> 6) & 3) }
-  return { person, body, head, leftArm, rightArm, leftLeg, rightLeg, cup, tableCup, ring, seatYaw, route, status, anchor, origin, routine, sipping: false }
+  const rig: PersonRig = { person, body, head, leftArm, rightArm, leftLeg, rightLeg, cup, hoe, tableCup, ring, seatYaw, route,
+    updatedAt: session.updatedAt, sampleActive: !session.updatedAt && session.status === 'recent',
+    anchor, origin, path: [], pathIndex: 0, destination: 'desk', mode: 'seated', nextDecisionAt: Date.now() + between(random, 2_000, 15_000),
+    farm: new THREE.Vector3(), cafe: new THREE.Vector3(), streetX: 0, worldSize: 0, roamPaths: [], random,
+    walkSpeed: between(random, 1.8, 2.55), motionPhase: between(random, 0, Math.PI * 2),
+    hairMaterial: hair, baseHair, beard, age: 0 }
+  updateAge(rig, session.tokens)
+  return rig
+}
+
+function updateAge(rig: PersonRig, tokens: number | undefined): void {
+  const age = THREE.MathUtils.clamp((Math.log10(Math.max(0, tokens || 0) + 1) - 3) / 3, 0, 1)
+  rig.age = age
+  rig.hairMaterial.color.copy(rig.baseHair).lerp(new THREE.Color(0xc7c4b3), age * 0.92)
+  rig.beard.visible = age > 0.43
+  rig.beard.scale.y = THREE.MathUtils.lerp(0.35, 1.45, age)
 }
 
 function buildingMetrics(project: Project): { commons: boolean; seatColumns: number; tableRows: number; width: number; depth: number } {
@@ -261,7 +321,7 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
   const roof = codex ? materials.outpostRoof : materials.roof[commons ? 0 : index % materials.roof.length]
   const roofTrim = codex ? materials.outpostRoofTrim : timber
   const cobble = (variant: number) => codex ? (variant % 2 ? stone : stoneEdge) : materials.cobble[variant % 4]
-  const variant = hash(project.id) % 3
+  const variant = deriveSeed(worldSeed, `building:${project.id}`) % 3
   // A front cutaway reveals the communal table; the stepped gable remains a cottage silhouette.
   box(group, width + 1.1, 0.37, depth + 1.1, stoneEdge, 0, 0.13, 0)
   box(group, width + 0.5, 0.18, depth + 0.6, wood, 0, 0.4, 0)
@@ -380,7 +440,7 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
     const tableCup = addMug(group, seatX + (seatX < 0 ? -0.52 : 0.52), 1.46, keyboardZ + (back ? 0.37 : -0.37), codex)
     const aisleX = (seatX < 0 ? -1 : 1) * (tableLength / 2 + 0.56)
     const outsideZ = back ? seatZ - 0.7 : seatZ + 0.63
-    const seed = hash(session.id)
+    const seed = deriveSeed(worldSeed, `route:${session.id}`)
     const variant = seed % 4
     const walkSide = variant % 2 ? -1 : 1
     const destinationX = walkSide * (variant < 2 ? 1.35 + (seed % 3) * 0.55 : width / 2 + 1.35 + (seed % 3) * 0.4)
@@ -396,7 +456,7 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
       new THREE.Vector3(destinationX, 0, destinationZ),
     ]
     const anchor = new THREE.Vector3(x + seatX, 2.8, z + seatZ)
-    const rig = addPerson(group, session.id, seatX, seatZ, !back, project.source, session.status, route, anchor, new THREE.Vector3(x, 0, z), tableCup)
+    const rig = addPerson(group, session, seatX, seatZ, !back, project.source, route, anchor, new THREE.Vector3(x, 0, z), tableCup)
     rigs.set(session.id, rig)
     seats.set(session.id, anchor)
   })
@@ -569,7 +629,7 @@ function addBrazier(scene: THREE.Scene, x: number, z: number): void {
   box(scene, 0.12, 0.26, 0.13, materials.ember, x + 0.14, 1.19, z + 0.07).castShadow = false
 }
 
-function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, buildings: Map<string, Place>, focusFrames: Map<string, THREE.Group>): { size: number; ripples: THREE.Mesh[]; boards: Map<TelemetrySource, THREE.Vector3> } {
+function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, buildings: Map<string, Place>, focusFrames: Map<string, THREE.Group>): { size: number; ripples: THREE.Mesh[]; boards: Map<TelemetrySource, THREE.Vector3>; facilities: Map<string, THREE.Vector3> } {
   const maxWidth = Math.max(9.4, ...projects.map((project) => buildingMetrics(project).width))
   const claudeProjects = projects.filter((project) => project.source !== 'codex' && project.kind !== 'Commons')
   const codexProjects = projects.filter((project) => project.source === 'codex' && project.kind !== 'Commons')
@@ -577,6 +637,10 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   const streetXOffset = 14
   const landingXOffset = 10.2
   const landingZ = -2.1
+  const farmX = districtX + 12
+  // Keep the cafeterias between the river and district streets, in front of the work buildings.
+  const cafeX = 9.5
+  const cafeZ = 9.7
   const boardZ = -5.2
   const rowZ = [-22, 18, -43, 43]
   const rowX = { claude: [-5, 6, 16, -5], codex: [6, -5, 16, -5] }
@@ -587,7 +651,7 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   }
   const sites = [...claudeProjects.map((project, index) => ({ project, ...site('claude', index) })),
     ...codexProjects.map((project, index) => ({ project, ...site('codex', index) }))]
-  const farthestX = Math.max(districtX + maxWidth / 2 + 4, ...sites.map(({ project, x }) => Math.abs(x) + buildingMetrics(project).width / 2 + 4))
+  const farthestX = Math.max(farmX + 7, districtX + maxWidth / 2 + 4, ...sites.map(({ project, x }) => Math.abs(x) + buildingMetrics(project).width / 2 + 4))
   const farthestZ = Math.max(12, ...sites.map(({ project, z }) => Math.abs(z) + buildingMetrics(project).depth / 2 + 7))
   const size = Math.max(64, Math.ceil(Math.max(farthestX, farthestZ) / 2) * 4)
   box(scene, size + 1.8, 0.27, size + 1.8, materials.plinth, 0, -0.91, 0)
@@ -597,6 +661,7 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   const ripples = addRiver(scene, size)
   addBridge(scene)
   const boards = new Map<TelemetrySource, THREE.Vector3>()
+  const facilities = new Map<string, THREE.Vector3>()
   for (const source of ['claude', 'codex'] as const) {
     const codex = source === 'codex'
     const x = (codex ? 1 : -1) * landingXOffset
@@ -646,7 +711,14 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
     const side = codex ? 1 : -1
     const hall = projects.find((project) => project.source === source && project.kind === 'Commons')
     const streetX = side * streetXOffset
-    const entranceZs = [0]
+    const entranceZs = [-11, 0, cafeZ]
+    addFarm(scene, side * farmX, -11, codex)
+    addCafeteria(scene, side * cafeX, cafeZ, codex)
+    facilities.set(`${source}-farm`, new THREE.Vector3(side * farmX, 2.7, -11))
+    facilities.set(`${source}-cafe`, new THREE.Vector3(side * cafeX, 4.1, cafeZ))
+    positions.push([side * farmX, -11, 7], [side * cafeX, cafeZ, 5])
+    path(streetX, -11, side * (farmX - 6), -11, codex)
+    path(streetX, cafeZ, side * (cafeX + 3.6), cafeZ, codex)
     path(side * 5.4, 0, streetX, 0, codex)
     path(side * landingXOffset, 0, side * landingXOffset, boardZ + 1.2, codex)
     if (hall) {
@@ -693,10 +765,11 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   for (const segment of pathSegments.sort((a, b) => Number(b.street) - Number(a.street))) {
     addPath(scene, segment.fromX, segment.fromZ, segment.toX, segment.toZ, segment.codex, occupiedPathStones)
   }
-  const seeded = (index: number) => { const n = Math.sin(index * 72.13 + 3.2) * 43758.5453; return n - Math.floor(n) }
+  const terrainRandom = createRandom(deriveSeed(worldSeed, 'terrain'))
   for (let index = 0; index < Math.min(210, Math.round(size * 2.5)); index++) {
-    const x = (seeded(index * 2) - 0.5) * (size - 4)
-    const z = (seeded(index * 2 + 1) - 0.5) * (size - 4)
+    // The ground samples are uniform by area across each side of the village.
+    const x = between(terrainRandom, -size / 2 + 2, size / 2 - 2)
+    const z = between(terrainRandom, -size / 2 + 2, size / 2 - 2)
     if (Math.abs(x) < 5.0 || (Math.abs(Math.abs(x) - landingXOffset) < 5 && Math.abs(z - landingZ) < 5)
       || (Math.abs(x + districtX) < 5 && Math.abs(z) < 5) || (Math.abs(x - districtX) < 5 && Math.abs(z) < 5)) continue
     if (positions.some(([bx, bz, clearanceZ]) => Math.abs(x - bx) < maxWidth / 2 + 2.4 && Math.abs(z - bz) < clearanceZ)) continue
@@ -706,24 +779,78 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
       return Math.hypot(x - ax - dx * amount, z - az - dz * amount) < 1.8
     })) continue
     if (x < 0) {
-      if (seeded(index + 333) > 0.94) addTree(scene, x, z, 0.53 + seeded(index + 101) * 0.28)
+      if (terrainRandom() > 0.94) addTree(scene, x, z, between(terrainRandom, 0.53, 0.81))
       else {
         box(scene, 0.13, 0.13, 0.13, materials.flower[index % materials.flower.length], x, 0.03, z)
         box(scene, 0.23, 0.06, 0.12, index % 2 ? materials.grassLight : materials.grassDark, x + 0.24, 0.005, z)
       }
-    } else if (seeded(index + 333) > 0.94) addDarkTree(scene, x, z, 0.5 + seeded(index + 101) * 0.28)
+    } else if (terrainRandom() > 0.94) addDarkTree(scene, x, z, between(terrainRandom, 0.5, 0.78))
     else {
       box(scene, 0.23, 0.13, 0.19, index % 3 ? materials.outpostStone : materials.outpostGrass, x, 0.03, z)
       if (index % 5 === 0) box(scene, 0.07, 0.42, 0.07, materials.reed, x + 0.21, 0.21, z)
     }
   }
-  return { size, ripples, boards }
+  const roamPaths = {
+    claude: pathSegments.filter((segment) => !segment.codex),
+    codex: pathSegments.filter((segment) => segment.codex),
+  }
+  rigs.forEach((rig) => {
+    const side = rig.origin.x < 0 ? -1 : 1
+    rig.streetX = side * streetXOffset
+    rig.farm.set(side * (farmX - 1.5), 0, -11)
+    rig.cafe.set(side * cafeX, 0, cafeZ + 3.5)
+    rig.worldSize = size
+    rig.roamPaths = roamPaths[side < 0 ? 'claude' : 'codex'].map((segment) => ({
+      fromX: segment.fromX, fromZ: segment.fromZ, toX: segment.toX, toZ: segment.toZ,
+      // Longer paths are likelier, while shorter branches still get frequent visits.
+      weight: Math.sqrt(Math.hypot(segment.toX - segment.fromX, segment.toZ - segment.fromZ)),
+    }))
+  })
+  return { size, ripples, boards, facilities }
 }
 
 const cameraOffset = new THREE.Vector3(29, 34, 43)
 const initialYaw = Math.atan2(cameraOffset.x, cameraOffset.z)
 const initialPitch = Math.atan2(cameraOffset.y, Math.hypot(cameraOffset.x, cameraOffset.z))
 const cameraDistance = cameraOffset.length()
+
+const seasonPalette = [
+  { ground: 0x79a66b, outpost: 0x718d75, leaf: 0x65a35e, leafLight: 0x9bbc75, crop: 0x81aa56, cropLight: 0xb8bd6e, flower: 0xf0bac2 },
+  { ground: 0x749361, outpost: 0x697b64, leaf: 0x4f7549, leafLight: 0x779451, crop: 0x77974b, cropLight: 0xa6aa53, flower: 0xe8c477 },
+  { ground: 0x987d55, outpost: 0x797962, leaf: 0x9f6844, leafLight: 0xc08a4b, crop: 0x9b8350, cropLight: 0xc0a261, flower: 0xc98f80 },
+  { ground: 0xc7d1c4, outpost: 0xabb8b4, leaf: 0xb9c8bd, leafLight: 0xe0e5dc, crop: 0x9ba999, cropLight: 0xcad4bd, flower: 0xe4dce4 },
+] as const
+
+function updateEnvironment(now: number, scene: THREE.Scene, ambient: THREE.AmbientLight, sun: THREE.DirectionalLight, renderer: THREE.WebGLRenderer): void {
+  const clock = worldClock(now)
+  const seasonIndex = ['Spring', 'Summer', 'Autumn', 'Winter'].indexOf(clock.season)
+  const current = seasonPalette[seasonIndex]
+  const next = seasonPalette[(seasonIndex + 1) % 4]
+  const blend = THREE.MathUtils.smoothstep(clock.seasonProgress, 0.82, 1)
+  const paint = (material: THREE.MeshLambertMaterial, key: keyof typeof current) => {
+    material.color.setHex(current[key]).lerp(new THREE.Color(next[key]), blend)
+  }
+  paint(materials.ground, 'ground')
+  paint(materials.outpostGround, 'outpost')
+  paint(materials.outpostGrass, 'outpost')
+  paint(materials.leaf, 'leaf')
+  paint(materials.leafLight, 'leafLight')
+  paint(materials.crop, 'crop')
+  paint(materials.cropLight, 'cropLight')
+  paint(materials.flower[0], 'flower')
+  const night = 1 - clock.daylight
+  const sky = new THREE.Color(clock.season === 'Winter' ? 0xcddbe0 : 0xc9d7bb).lerp(new THREE.Color(0x526578), night * 0.88)
+  scene.background = sky
+  if (scene.fog instanceof THREE.Fog) scene.fog.color.copy(sky)
+  ambient.color.setHex(0xffefdb).lerp(new THREE.Color(0xb6c9dd), night * 0.76)
+  ambient.intensity = 1.25 + clock.daylight * 0.25
+  sun.color.setHex(0xffe8c3).lerp(new THREE.Color(0xaec8ed), night)
+  sun.intensity = 0.75 + clock.daylight * 1.5
+  sun.position.set(Math.cos(clock.dayProgress * Math.PI * 2) * 35, 18 + clock.daylight * 30, 22)
+  materials.lamp.emissiveIntensity = 0.65 + night * 1.7
+  materials.ember.emissiveIntensity = 0.55 + night * 1.25
+  renderer.toneMappingExposure = 1.05 + clock.daylight * 0.25
+}
 
 function placeAlongRoute(rig: PersonRig, progress: number, returning: boolean, route = rig.route): void {
   let total = 0
@@ -754,65 +881,126 @@ function animateExile(rig: PersonRig, route: THREE.Vector3[], progress: number, 
   rig.leftArm.rotation.x = -0.25 + stride * 0.3
   rig.rightArm.rotation.x = -0.25 - stride * 0.3
   rig.cup.visible = false
+  rig.hoe.visible = false
   rig.ring.visible = false
   rig.person.scale.setScalar(1 - THREE.MathUtils.smoothstep(progress, 0.82, 1))
   rig.anchor.set(rig.origin.x + rig.person.position.x, 2.75 + rig.body.position.y, rig.origin.z + rig.person.position.z)
 }
 
-function animatePerson(rig: PersonRig, time: number, reducedMotion: boolean): void {
-  const routine = rig.routine
-  const cycle = (time + routine.phase) % routine.period
-  const outEnd = routine.desk + routine.travel
-  const lingerEnd = outEnd + routine.linger
-  const backEnd = lingerEnd + routine.travel
-  const leaving = !reducedMotion && cycle >= routine.desk && cycle < outEnd
-  const outside = !reducedMotion && cycle >= outEnd && cycle < lingerEnd
-  const returning = !reducedMotion && cycle >= lingerEnd && cycle < backEnd
-  const standing = leaving || outside || returning
-  const walking = leaving || returning
-  const standAmount = leaving ? THREE.MathUtils.clamp((cycle - routine.desk) / 0.8, 0, 1)
-    : returning ? THREE.MathUtils.clamp((backEnd - cycle) / 0.8, 0, 1) : outside ? 1 : 0
-  const coffeeClock = (time + routine.coffeePhase) % routine.coffeePeriod
-  const coffeeTime = coffeeClock - (routine.coffeePeriod - routine.coffeeDuration)
-  const coffeeAmount = !reducedMotion && !walking && coffeeTime > 0
-    ? THREE.MathUtils.smoothstep(coffeeTime, 0, 0.85) * (1 - THREE.MathUtils.smoothstep(coffeeTime, routine.coffeeDuration - 0.85, routine.coffeeDuration)) : 0
-  if (leaving) placeAlongRoute(rig, (cycle - routine.desk) / routine.travel, false)
-  else if (returning) placeAlongRoute(rig, (backEnd - cycle) / routine.travel, true)
-  else if (outside) {
-    const progress = (cycle - outEnd) / routine.linger
-    rig.person.position.copy(rig.route[rig.route.length - 1])
-    rig.person.position.x += Math.sin(progress * Math.PI * 2) * 0.7 * (1 - coffeeAmount)
-    rig.person.position.z += Math.sin(progress * Math.PI * 4) * 0.18 * (1 - coffeeAmount)
-    rig.person.rotation.y = Math.sin(progress * Math.PI * 2) * 0.38
+function localPoint(rig: PersonRig, world: THREE.Vector3): THREE.Vector3 {
+  return new THREE.Vector3(world.x - rig.origin.x, 0, world.z - rig.origin.z)
+}
+
+function sampleRoamGoal(rig: PersonRig): THREE.Vector3 {
+  if (!rig.roamPaths.length) return new THREE.Vector3(rig.streetX, 0, between(rig.random, -rig.worldSize / 2 + 4, rig.worldSize / 2 - 4))
+  const segment = weightedChoice(rig.roamPaths.map((path) => ({ value: path, weight: path.weight })), rig.random)
+  const length = Math.hypot(segment.toX - segment.fromX, segment.toZ - segment.fromZ)
+  const progress = between(rig.random, 0.06, 0.94)
+  const offset = between(rig.random, -0.55, 0.55)
+  return new THREE.Vector3(
+    segment.fromX + (segment.toX - segment.fromX) * progress - (segment.toZ - segment.fromZ) / length * offset,
+    0,
+    segment.fromZ + (segment.toZ - segment.fromZ) * progress + (segment.toX - segment.fromX) / length * offset,
+  )
+}
+
+function chooseActivity(rig: PersonRig, now: number): Destination {
+  const clock = worldClock(now)
+  const seasonFarmFactor = clock.season === 'Winter' ? 0.6 : clock.season === 'Summer' ? 1.2 : 1
+  const choices: { value: Destination; weight: number }[] = [
+    { value: 'farm', weight: (1.2 + clock.daylight * 5.2) * seasonFarmFactor },
+    { value: 'coffee', weight: 2.2 + (1 - clock.daylight) * 2.3 + (clock.dayProgress > 0.35 ? 0.7 : 0) },
+    { value: 'roam', weight: 2.5 + (clock.season === 'Spring' || clock.season === 'Summer' ? 0.6 : 0) },
+  ]
+  return weightedChoice(choices.map((choice) => ({ ...choice,
+    weight: choice.value === rig.destination ? 0 : choice.weight })), rig.random)
+}
+
+function chooseDestination(rig: PersonRig, destination: Destination): void {
+  const current = rig.person.position.clone()
+  const entrance = rig.route[5]
+  const entranceWorldZ = rig.origin.z + entrance.z
+  let goal: THREE.Vector3
+  if (destination === 'farm') goal = rig.farm.clone().add(new THREE.Vector3(between(rig.random, -2.75, 2.75), 0, between(rig.random, -2.75, 2.75)))
+  else if (destination === 'coffee') goal = rig.cafe.clone().add(new THREE.Vector3(between(rig.random, -1.3, 1.3), 0, between(rig.random, -0.35, 0.35)))
+  else if (destination === 'roam') goal = sampleRoamGoal(rig)
+  else goal = new THREE.Vector3()
+
+  if (destination === 'desk') {
+    const worldZ = rig.origin.z + current.z
+    rig.path = [current, localPoint(rig, new THREE.Vector3(rig.streetX, 0, worldZ)),
+      localPoint(rig, new THREE.Vector3(rig.streetX, 0, entranceWorldZ)),
+      entrance.clone(), ...rig.route.slice(0, 5).reverse().map((point) => point.clone())]
   } else {
-    rig.person.position.copy(rig.route[0])
-    rig.person.rotation.y = rig.seatYaw
+    const start = rig.mode === 'seated' ? rig.route.slice(1, 6).map((point) => point.clone()) : []
+    const fromZ = rig.mode === 'seated' ? entranceWorldZ : rig.origin.z + current.z
+    rig.path = [current, ...start,
+      localPoint(rig, new THREE.Vector3(rig.streetX, 0, fromZ)),
+      localPoint(rig, new THREE.Vector3(rig.streetX, 0, goal.z)), localPoint(rig, goal)]
   }
-  const stride = walking ? Math.sin(time * routine.strideSpeed + routine.phase) : 0
-  rig.body.position.y = standAmount * (0.27 + (walking ? Math.abs(stride) * 0.035 : 0)) + (reducedMotion ? 0 : Math.sin(time * 1.45 + routine.phase) * 0.013)
-  rig.leftLeg.position.y = rig.rightLeg.position.y = 0.7 + standAmount * 0.2
-  rig.leftLeg.scale.y = rig.rightLeg.scale.y = 1 + standAmount * 0.35
-  rig.leftLeg.rotation.x = walking ? stride * 0.33 * standAmount : 0
-  rig.rightLeg.rotation.x = walking ? -stride * 0.33 * standAmount : 0
-  rig.cup.visible = coffeeAmount > 0.08
-  rig.tableCup.visible = !rig.cup.visible
-  rig.sipping = coffeeAmount > 0.45
+  rig.pathIndex = 1
+  rig.destination = destination
+  rig.mode = 'walking'
+}
+
+function animatePerson(rig: PersonRig, time: number, delta: number, now: number, reducedMotion: boolean): void {
+  const working = activityIsCurrent(rig.updatedAt, rig.sampleActive, now)
+  if (working && rig.destination !== 'desk') chooseDestination(rig, 'desk')
+  if (!working && (rig.mode === 'seated' || rig.mode === 'dwelling') && now >= rig.nextDecisionAt) chooseDestination(rig, chooseActivity(rig, now))
+  let walking = rig.mode === 'walking'
   if (walking) {
-    rig.leftArm.rotation.x = -0.28 + stride * 0.29
-    rig.rightArm.rotation.x = -0.28 - stride * 0.29
-  } else if (standing) {
-    rig.leftArm.rotation.x = -0.3
-    rig.rightArm.rotation.x = -0.25
-  } else if (rig.status === 'recent' && !reducedMotion) {
-    rig.leftArm.rotation.x = -1.25 + Math.sin(time * 9.1 + routine.phase) * 0.1
-    rig.rightArm.rotation.x = -1.25 + Math.sin(time * 10.4 + routine.phase + 1.8) * 0.1
-  } else {
-    rig.leftArm.rotation.x = -0.53
-    rig.rightArm.rotation.x = -0.4
+    let remaining = (reducedMotion ? 12 : rig.walkSpeed - rig.age * 0.35) * delta
+    while (remaining > 0 && rig.pathIndex < rig.path.length) {
+      const target = rig.path[rig.pathIndex]
+      const distance = rig.person.position.distanceTo(target)
+      if (distance < 0.01) { rig.pathIndex++; continue }
+      const step = Math.min(distance, remaining)
+      const dx = target.x - rig.person.position.x, dz = target.z - rig.person.position.z
+      rig.person.position.addScaledVector(target.clone().sub(rig.person.position).normalize(), step)
+      rig.person.rotation.y = Math.atan2(dx, dz)
+      remaining -= step
+      if (step >= distance - 0.001) rig.pathIndex++
+    }
+    if (rig.pathIndex >= rig.path.length) {
+      walking = false
+      rig.mode = rig.destination === 'desk' ? 'seated' : 'dwelling'
+      rig.nextDecisionAt = now + (rig.destination === 'farm' ? between(rig.random, 17_000, 41_000)
+        : rig.destination === 'coffee' ? between(rig.random, 8_000, 20_000) : between(rig.random, 5_000, 18_000))
+      if (rig.mode === 'seated') rig.person.rotation.y = rig.seatYaw
+      else if (rig.destination === 'coffee') rig.person.rotation.y = Math.PI
+    }
   }
-  rig.rightArm.rotation.x = THREE.MathUtils.lerp(rig.rightArm.rotation.x, -1.95, coffeeAmount)
-  rig.head.rotation.z = reducedMotion ? 0 : Math.sin(time * 0.85 + routine.phase) * (standing ? 0.045 : 0.025)
-  rig.head.rotation.x = -0.13 * coffeeAmount
+  const standing = rig.mode !== 'seated'
+  const stride = walking && !reducedMotion ? Math.sin(time * (8.5 - rig.age) + rig.motionPhase) : 0
+  rig.body.position.y = (standing ? 0.27 + Math.abs(stride) * 0.045 : 0) + (reducedMotion ? 0 : Math.sin(time * 1.45 + rig.motionPhase) * 0.012)
+  rig.body.rotation.x = rig.age * 0.055
+  rig.leftLeg.position.y = rig.rightLeg.position.y = standing ? 0.9 : 0.7
+  rig.leftLeg.scale.y = rig.rightLeg.scale.y = standing ? 1.35 : 1
+  rig.leftLeg.rotation.x = stride * 0.35
+  rig.rightLeg.rotation.x = -stride * 0.35
+  const farming = rig.mode === 'dwelling' && rig.destination === 'farm'
+  const drinking = rig.mode === 'dwelling' && rig.destination === 'coffee'
+  rig.cup.visible = drinking
+  rig.hoe.visible = farming
+  rig.tableCup.visible = true
+  if (walking) {
+    rig.leftArm.rotation.x = -0.28 + stride * 0.3
+    rig.rightArm.rotation.x = -0.28 - stride * 0.3
+  } else if (farming) {
+    rig.leftArm.rotation.x = -0.22
+    rig.rightArm.rotation.x = -0.95 + (reducedMotion ? 0 : Math.sin(time * 2.1 + rig.motionPhase) * 0.52)
+  } else if (drinking) {
+    rig.leftArm.rotation.x = -0.35
+    rig.rightArm.rotation.x = -1.9 + (reducedMotion ? 0 : Math.sin(time * 1.6 + rig.motionPhase) * 0.16)
+  } else if (rig.mode === 'seated' && working && !reducedMotion) {
+    rig.leftArm.rotation.x = -1.25 + Math.sin(time * 9.1 + rig.motionPhase) * 0.1
+    rig.rightArm.rotation.x = -1.25 + Math.sin(time * 10.4 + rig.motionPhase + 1.8) * 0.1
+  } else {
+    rig.leftArm.rotation.x = -0.4
+    rig.rightArm.rotation.x = -0.35
+  }
+  rig.head.rotation.z = reducedMotion ? 0 : Math.sin(time * 0.85 + rig.motionPhase) * 0.035
+  rig.head.rotation.x = drinking ? -0.12 : farming ? 0.12 : 0
   rig.anchor.set(rig.origin.x + rig.person.position.x, 2.75 + rig.body.position.y, rig.origin.z + rig.person.position.z)
 }
 
@@ -861,7 +1049,8 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     renderer.toneMappingExposure = 1.3
     renderer.domElement.className = 'world-canvas'
     host.prepend(renderer.domElement)
-    scene.add(new THREE.AmbientLight(0xffefdb, 1.45))
+    const ambient = new THREE.AmbientLight(0xffefdb, 1.45)
+    scene.add(ambient)
     const sun = new THREE.DirectionalLight(0xffe8c3, 2.25)
     sun.position.set(-20, 37, 27)
     sun.castShadow = true
@@ -873,14 +1062,14 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     const rigs = new Map<string, PersonRig>()
     const focusFrames = new Map<string, THREE.Group>()
     const sessionProjects = new Map(projects.flatMap((project) => project.sessions.map((session): [string, string] => [session.id, project.id])))
-    const { size, ripples, boards } = addVillage(scene, projects, seats, rigs, buildings, focusFrames)
+    const { size, ripples, boards, facilities } = addVillage(scene, projects, seats, rigs, buildings, focusFrames)
     const shadowExtent = Math.max(48, size * 0.74)
     sun.shadow.camera.left = -shadowExtent; sun.shadow.camera.right = shadowExtent
     sun.shadow.camera.top = shadowExtent; sun.shadow.camera.bottom = -shadowExtent
     sun.shadow.camera.updateProjectionMatrix()
     const target = new THREE.Vector3()
     const runtime: Runtime = { camera, target, desiredTarget: target.clone(), desiredZoom: 1, overviewZoom: 1,
-      yaw: initialYaw, desiredYaw: initialYaw, pitch: initialPitch, desiredPitch: initialPitch, buildings, seats, rigs, focusFrames, boards, ripples }
+      yaw: initialYaw, desiredYaw: initialYaw, pitch: initialPitch, desiredPitch: initialPitch, buildings, seats, rigs, focusFrames, boards, facilities, ripples }
     runtimeRef.current = runtime
     camera.position.copy(cameraOffset)
     camera.lookAt(target)
@@ -978,6 +1167,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     const orbitOffset = new THREE.Vector3()
     let frame = 0
     let previousFrame = performance.now()
+    let lastEnvironmentUpdate = 0
     let exile: { id: string; started: number; route: THREE.Vector3[] } | null = null
     const render = () => {
       frame = requestAnimationFrame(render)
@@ -985,6 +1175,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       const delta = Math.min((now - previousFrame) / 1000, 0.05)
       previousFrame = now
       const t = now / 1000
+      if (now - lastEnvironmentUpdate > 1000) { updateEnvironment(Date.now(), scene, ambient, sun, renderer); lastEnvironmentUpdate = now }
       if (exilingRef.current && exile?.id !== exilingRef.current) {
         const rig = rigs.get(exilingRef.current)
         if (rig) {
@@ -996,7 +1187,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       }
       rigs.forEach((rig, id) => {
         if (exile?.id === id) animateExile(rig, exile.route, Math.min(1, (now - exile.started) / (reducedMotion.matches ? 250 : 3000)), t, reducedMotion.matches)
-        else animatePerson(rig, t, reducedMotion.matches)
+        else animatePerson(rig, t, delta, Date.now(), reducedMotion.matches)
       })
       const lockedRig = lockedSessionRef.current ? rigs.get(lockedSessionRef.current) : null
       if (lockedRig) {
@@ -1028,26 +1219,25 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       for (const label of host.querySelectorAll<HTMLElement>('[data-world-label]')) {
         const kind = label.dataset.worldLabel
         const id = label.dataset.worldId || ''
-        const anchor = kind === 'project' ? buildings.get(id)?.point : kind === 'board' ? boards.get(id as TelemetrySource) : seats.get(id)
+        const anchor = kind === 'project' ? buildings.get(id)?.point : kind === 'board' ? boards.get(id as TelemetrySource)
+          : kind === 'facility' ? facilities.get(id) : seats.get(id)
         if (!anchor) continue
         if (kind === 'project') label.classList.toggle('is-overview', camera.zoom < runtime.overviewZoom * 1.45)
         labelPoint.copy(anchor)
-        if (kind === 'coffee') labelPoint.y += 0.65
         labelPoint.project(camera)
         const onScreen = labelPoint.z < 1 && labelPoint.x > -1.12 && labelPoint.x < 1.12 && labelPoint.y > -1.12 && labelPoint.y < 1.12
-        const show = kind === 'coffee' ? !!rigs.get(id)?.sipping
+        const show = kind === 'facility' ? camera.zoom > runtime.overviewZoom * 1.18
           : kind !== 'session' || ((camera.zoom > runtime.overviewZoom * 1.55 || id === selectedRef.current)
             && (!focusedRef.current || sessionProjects.get(id) === focusedRef.current || id === selectedRef.current))
         label.style.visibility = onScreen && show ? 'visible' : 'hidden'
         if (onScreen && show) visibleLabels.push({ label, kind: kind || '', x: (labelPoint.x + 1) * host.clientWidth / 2, y: (1 - labelPoint.y) * host.clientHeight / 2 })
       }
       const occupied: { left: number; right: number; top: number; bottom: number }[] = []
-      const priority = (kind: string) => kind === 'board' ? -2 : kind === 'project' ? -1 : kind === 'coffee' ? 0 : 1
+      const priority = (kind: string) => kind === 'board' ? -2 : kind === 'project' ? -1 : kind === 'facility' ? 0 : 1
       for (const item of visibleLabels.sort((a, b) => priority(a.kind) - priority(b.kind))) {
         const width = item.label.offsetWidth
         const height = item.label.offsetHeight
-        const offsets = item.kind === 'coffee' ? [[0, -18], [-28, -18], [28, -18], [0, 12]]
-          : item.kind === 'session'
+        const offsets = item.kind === 'session'
           ? [[0, 0], [0, -25], [0, 25], [-35, 0], [35, 0]]
           : [[0, 0], [0, -38], [0, 38], [-60, 0], [60, 0], [-75, -43], [75, -43], [-75, 43], [75, 43], [0, -80], [0, 80], [-135, 0], [135, 0], [-130, -80], [130, -80], [-130, 80], [130, 80], [-200, 0], [200, 0]]
         let placed = false
@@ -1078,6 +1268,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       renderer.domElement.removeEventListener('contextmenu', contextMenu)
       renderer.domElement.removeEventListener('wheel', wheel)
       scene.traverse((object) => { if (object instanceof THREE.Mesh) object.geometry.dispose() })
+      rigs.forEach((rig) => rig.hairMaterial.dispose())
       renderer.dispose()
       renderer.domElement.remove()
       runtimeRef.current = null
@@ -1100,7 +1291,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
   useEffect(() => {
     for (const project of projects) for (const session of project.sessions) {
       const rig = runtimeRef.current?.rigs.get(session.id)
-      if (rig) rig.status = session.status
+      if (rig) { rig.updatedAt = session.updatedAt; rig.sampleActive = !session.updatedAt && session.status === 'recent'; updateAge(rig, session.tokens) }
     }
   }, [projects, signature])
 
@@ -1119,10 +1310,10 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       {projects.map((project) => <button className={`building-label ${project.source === 'codex' ? 'codex' : ''} ${project.kind === 'Commons' ? 'commons' : ''} ${project.id === activeProjectId ? 'is-focused' : ''}`} key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => callbacksRef.current.onFocusProject(project.id)} type="button">
         <span className="building-label-kind">{project.source} · {project.kind}</span><strong>{project.name}</strong><small>{project.sessions.length} {project.sessions.length === 1 ? 'session' : 'sessions'}</small>
       </button>)}
+      {(['claude', 'codex'] as const).flatMap((source) => ['farm', 'cafe'].map((place) => <span className="facility-label" key={`${source}-${place}`} data-world-label="facility" data-world-id={`${source}-${place}`}>{place === 'farm' ? 'Farm' : 'Cafeteria'}</span>))}
       {projects.flatMap((project) => project.sessions.map((session) => <button className={`session-label ${project.source === 'codex' ? 'codex' : ''} ${selectedId === session.id ? 'is-selected' : ''}`} key={session.id} data-world-label="session" data-world-id={session.id} onClick={() => callbacksRef.current.onSelectSession(session.id)} type="button" title={session.name}>
         <span className={`session-status ${session.status}`} />{session.name}
       </button>))}
-      {projects.flatMap((project) => project.sessions.map((session) => <span className="coffee-signal" key={`coffee-${session.id}`} data-world-label="coffee" data-world-id={session.id} aria-hidden="true">☕</span>))}
     </div>
   </div>
 })

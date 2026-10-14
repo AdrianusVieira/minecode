@@ -17,7 +17,7 @@ type Source = Project['source']
 type RawSession = Record<string, unknown>
 type Metadata = { title?: string; cwd?: string }
 type MetadataMap = Map<string, Metadata>
-type LiveRecord = { id: string; title: string; project: string; projectKey: string; lastSeen: number; activity: string }
+type LiveRecord = { id: string; title: string; project: string; projectKey: string; lastSeen: number; activity: string; tokens: number }
 let metadataCache: { at: number; value: MetadataMap } | null = null
 
 const eventNames: Record<string, string> = {
@@ -39,6 +39,13 @@ function text(value: unknown, fallback: string, max = 90): string {
 
 function timestamp(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
+}
+
+function sessionTokens(item: RawSession, source: Source): number {
+  const values = source === 'claude'
+    ? ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheCreationTokens']
+    : ['observedTokens']
+  return values.reduce((sum, key) => sum + (typeof item[key] === 'number' && Number.isFinite(item[key]) && (item[key] as number) > 0 ? item[key] as number : 0), 0)
 }
 
 function projectName(value: unknown, fallback: string): string {
@@ -147,7 +154,7 @@ export function mapSessions(source: Source, raw: RawSession[], period: Telemetry
     const title = source === 'claude'
       ? text(item.title, `Claude session ${id.slice(0, 8)}`)
       : text(meta?.title, `Codex session ${id.slice(0, 8)}`)
-    return { id, title, project: location.name, projectKey: location.key, lastSeen: item.lastSeen as number, activity: latestActivity(item.recentEvents) }
+    return { id, title, project: location.name, projectKey: location.key, lastSeen: item.lastSeen as number, activity: latestActivity(item.recentEvents), tokens: sessionTokens(item, source) }
   }).filter((item) => item.id)
   const groups = new Map<string, LiveRecord[]>()
   for (const item of records) groups.set(item.projectKey, [...groups.get(item.projectKey) || [], item])
@@ -161,7 +168,7 @@ export function mapSessions(source: Source, raw: RawSession[], period: Telemetry
       const sessions: Session[] = entries.slice(start, start + capacity).map((item) => ({
         id: `${source}:${item.id}`, externalId: item.id, name: item.title,
         updatedAt: new Date(item.lastSeen).toISOString(), activity: item.activity,
-        status: now - item.lastSeen < 15 * 60_000 ? 'recent' : 'quiet',
+        status: now - item.lastSeen < 15 * 60_000 ? 'recent' : 'quiet', tokens: item.tokens,
       }))
       projects.push({ id: `${source}:${key}:${annex}`, name: annex ? `${name} · Annex ${annex + 1}` : name,
         kind: commons ? 'Commons' : source === 'claude' ? 'Workshop' : 'Outpost', source, sessions })
@@ -174,10 +181,9 @@ export function mapSessions(source: Source, raw: RawSession[], period: Telemetry
 }
 
 export async function getLiveSnapshot(period: TelemetryPeriod, stores: TelemetryStores): Promise<WorldSnapshot> {
-  const window = period === 'all' ? null : period
   const [claude, codex] = await Promise.allSettled([
-    Promise.resolve().then(() => stores.claude.sessions(window).sessions.map(record)),
-    Promise.resolve().then(() => stores.codex.sessions(window).sessions.map(record)),
+    Promise.resolve().then(() => stores.claude.sessions(null).sessions.map(record)),
+    Promise.resolve().then(() => stores.codex.sessions(null).sessions.map(record)),
   ])
   const now = Date.now()
   const metadata = codex.status === 'fulfilled' ? await codexMetadata(new Set(codex.value.map((item) => text(item.id, '')))) : new Map<string, Metadata>()
