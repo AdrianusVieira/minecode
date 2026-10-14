@@ -9,6 +9,7 @@ import PanelResizeHandle from './PanelResizeHandle'
 import type { TelemetrySource } from './telemetryData'
 import TimeRangePicker, { useTimeRange } from './TimeRangePicker'
 import { worldClock } from './worldClock'
+import { HospitalPanel, VillageChatPanel } from './VillageHospital'
 
 function timeAgo(value: string | null): string {
   if (!value) return 'No timestamp supplied'
@@ -46,6 +47,8 @@ export default function App() {
   const [panelTheme, setPanelTheme] = useState<PanelTheme>(savedTheme)
   const [panelWidth, setPanelWidth] = useState(savedWidth)
   const [worldTime, setWorldTime] = useState(() => worldClock(Date.now()))
+  const [hospitalOpen, setHospitalOpen] = useState(false)
+  const [pendingBirth, setPendingBirth] = useState<{ id: string; prompt: string } | null>(null)
 
   useEffect(() => { const timer = window.setInterval(() => setWorldTime(worldClock(Date.now())), 5_000); return () => window.clearInterval(timer) }, [])
 
@@ -85,8 +88,8 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setSelectedId(null); setShowGuide(false); setTelemetrySource(null) }
-      if (telemetrySource || (selectedId && snapshot?.source === 'telemetry')) return
+      if (event.key === 'Escape') { setSelectedId(null); setShowGuide(false); setTelemetrySource(null); setHospitalOpen(false) }
+      if (hospitalOpen || telemetrySource || (selectedId && snapshot?.source === 'telemetry')) return
       if (event.target instanceof HTMLElement && (event.target.isContentEditable || event.target.matches('input, textarea, select, [role="textbox"]'))) return
       if (panKeys.has(event.key as PanKey) && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault()
@@ -104,7 +107,7 @@ export default function App() {
     window.addEventListener('keyup', onKeyUp)
     window.addEventListener('blur', onBlur)
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKeyUp); window.removeEventListener('blur', onBlur) }
-  }, [telemetrySource, selectedId, snapshot?.source])
+  }, [hospitalOpen, telemetrySource, selectedId, snapshot?.source])
 
   const projects = snapshot?.projects || []
   const focusedProject = projects.find((project) => project.id === focusedId)
@@ -122,17 +125,18 @@ export default function App() {
     window.setTimeout(() => setCopied(false), 2000)
   }
 
-  const sessionFocusOpen = !!(selected && snapshot?.source === 'telemetry')
+  const sessionFocusOpen = hospitalOpen || !!(selected && snapshot?.source === 'telemetry')
   const displayControls = <PanelDisplayControls theme={panelTheme} onThemeChange={setPanelTheme} />
   const resizeHandle = <PanelResizeHandle width={panelWidth} onWidthChange={setPanelWidth} />
   return <main className={`app-shell ${sessionFocusOpen ? 'session-focus-open' : ''}`} style={{ '--panel-width': `${panelWidth}vw` } as React.CSSProperties}>
-    {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId || exilingId} exilingId={exilingId} focusedId={focusedId} lockSessionFocus={sessionFocusOpen || !!exilingId} onSelectSession={(id) => { if (!exilingId) setSelectedId(id) }} onFocusProject={focusProject} onOpenTelemetry={(source) => { setSelectedId(null); setShowGuide(false); setTelemetrySource(source) }} />}
+    {snapshot && <WorldScene ref={scene} projects={projects} selectedId={selectedId || exilingId} exilingId={exilingId} focusedId={focusedId} lockSessionFocus={sessionFocusOpen || !!exilingId} onSelectSession={(id) => { if (!exilingId) { setHospitalOpen(false); setSelectedId(id) } }} onFocusProject={focusProject} onOpenHospital={() => { setSelectedId(null); setTelemetrySource(null); setShowGuide(false); setHospitalOpen(true) }} onOpenTelemetry={(source) => { setSelectedId(null); setHospitalOpen(false); setShowGuide(false); setTelemetrySource(source) }} />}
     {!snapshot && <div className="loading-world"><div className="loading-mark">✦</div><p>{error || 'Preparing the village…'}</p><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
     <header className="app-header">
       <img className="brand-mark" src="/minecode-mark.svg" alt="" />
       <div className="brand-copy"><span className="brand-eyebrow">A WORLD FOR WORK IN PROGRESS</span><h1>Minecode</h1></div>
     </header>
     <div className="top-actions">
+      {snapshot?.source === 'telemetry' && <button type="button" className="hospital-action" onClick={() => { setSelectedId(null); setTelemetrySource(null); setHospitalOpen(true) }}><span aria-hidden="true">✚</span> New Claude chat</button>}
       <span className="world-weather" title="The village runs on its own clock: a 29 minute day and 43 minute seasons.">{worldTime.season} <span>·</span> {worldTime.daylight > 0.35 ? 'Day' : 'Night'}</span>
       {snapshot && <span className="source-badge" title={snapshot.notices?.join(' ')}><span className="source-dot" />{snapshot.source === 'sample' ? 'Sample village' : snapshot.source === 'telemetry' ? 'Live telemetry' : 'Local file'}{snapshot.notices?.length ? ' ·' : ''}</span>}
       {snapshot?.source === 'telemetry' && <div className="period-control"><TimeRangePicker control={worldRange} compact /></div>}
@@ -166,7 +170,10 @@ export default function App() {
       {snapshot?.source !== 'sample' && <button type="button" className="copy-button" onClick={() => void copyId()}>{copied ? 'Copied session ID' : 'Copy session ID'} <span aria-hidden="true">↗</span></button>}
       <p className="panel-note">Activity is the latest supplied signal. It does not confirm that a session is currently running.</p>
     </aside>}
-    {selected && snapshot?.source === 'telemetry' && <SessionTelemetryPanel key={`${selected.project.source}:${selected.session.id}`} session={selected.session} project={selected.project} initialPeriod={worldRange.range || 2} theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} onExiled={() => finishExile(selected!.session.id)} onClose={() => setSelectedId(null)} />}
+    {selected && snapshot?.source === 'telemetry' && (selected.session.minecodeCreated
+      ? <VillageChatPanel key={selected.session.id} session={selected.session} project={selected.project} theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} initialPrompt={pendingBirth && pendingBirth.id === selected.session.externalId ? pendingBirth.prompt : undefined} onPromptStarted={() => setPendingBirth(null)} onCompleted={() => void refreshWorldRef.current?.()} onClose={() => setSelectedId(null)} />
+      : <SessionTelemetryPanel key={`${selected.project.source}:${selected.session.id}`} session={selected.session} project={selected.project} initialPeriod={worldRange.range || 2} theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} onExiled={() => finishExile(selected!.session.id)} onClose={() => setSelectedId(null)} />)}
+    {hospitalOpen && <HospitalPanel theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} onClose={() => setHospitalOpen(false)} onCreated={(id, prompt) => { setPendingBirth({ id, prompt }); setHospitalOpen(false); setSelectedId(`claude:${id}`); void refreshWorldRef.current?.() }} />}
     {telemetrySource && <TelemetryPanel key={telemetrySource} source={telemetrySource} initialPeriod={worldRange.range || 2} theme={panelTheme} displayControls={displayControls} resizeHandle={resizeHandle} onClose={() => setTelemetrySource(null)} />}
     {!worldRange.query && snapshot?.source === 'telemetry' && <div className="data-warning" role="status">Choose a valid date range. The village still shows the previous period.</div>}
     {error && snapshot && <div className="data-warning" role="status">Showing the last village snapshot. {error}</div>}

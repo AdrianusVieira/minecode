@@ -4,11 +4,12 @@ import { activityIsCurrent, type Project } from './worldData'
 import type { TelemetrySource } from './telemetryData'
 import { worldClock } from './worldClock'
 import { between, createRandom, deriveSeed, getRunSeed, weightedChoice, type RandomSource } from './random'
+import { planVillageLayout } from './villageLayout'
 
 export type PanKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
 export type WorldControls = { fit: () => void; zoom: (direction: number) => void; rotate: (direction: number) => void; focusProject: (id: string) => void; setPanKey: (key: PanKey, pressed: boolean) => void; clearPanKeys: () => void }
-type Props = { projects: Project[]; selectedId: string | null; exilingId: string | null; focusedId: string | null; lockSessionFocus: boolean; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void; onOpenTelemetry: (source: TelemetrySource) => void }
-type Place = { point: THREE.Vector3; width: number }
+type Props = { projects: Project[]; selectedId: string | null; exilingId: string | null; focusedId: string | null; lockSessionFocus: boolean; onSelectSession: (id: string) => void; onFocusProject: (id: string) => void; onOpenHospital: () => void; onOpenTelemetry: (source: TelemetrySource) => void }
+type Place = { point: THREE.Vector3; x: number; z: number; width: number; depth: number; height: number }
 type Destination = 'desk' | 'farm' | 'coffee' | 'roam'
 type RoamPath = { fromX: number; fromZ: number; toX: number; toZ: number; weight: number }
 type PersonRig = {
@@ -457,6 +458,7 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
     ]
     const anchor = new THREE.Vector3(x + seatX, 2.8, z + seatZ)
     const rig = addPerson(group, session, seatX, seatZ, !back, project.source, route, anchor, new THREE.Vector3(x, 0, z), tableCup)
+    if (session.newborn) rig.person.scale.setScalar(0.68)
     rigs.set(session.id, rig)
     seats.set(session.id, anchor)
   })
@@ -496,7 +498,7 @@ function addBuilding(scene: THREE.Scene, project: Project, index: number, x: num
     }
     box(group, 2.7, 0.25, 0.74, stone, 0, 0.25, depth / 2 + 1.16)
   }
-  return { point: new THREE.Vector3(x, commons ? 8.1 : 6.45, z - depth / 2), width }
+  return { point: new THREE.Vector3(x, commons ? 8.1 : 6.45, z - depth / 2), x, z, width, depth, height: commons ? 8.2 : 7.2 }
 }
 
 function addDarkTree(parent: THREE.Object3D, x: number, z: number, size = 1): void {
@@ -630,30 +632,14 @@ function addBrazier(scene: THREE.Scene, x: number, z: number): void {
 }
 
 function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, THREE.Vector3>, rigs: Map<string, PersonRig>, buildings: Map<string, Place>, focusFrames: Map<string, THREE.Group>): { size: number; ripples: THREE.Mesh[]; boards: Map<TelemetrySource, THREE.Vector3>; facilities: Map<string, THREE.Vector3> } {
-  const maxWidth = Math.max(9.4, ...projects.map((project) => buildingMetrics(project).width))
-  const claudeProjects = projects.filter((project) => project.source !== 'codex' && project.kind !== 'Commons')
+  const claudeProjects = projects.filter((project) => project.source !== 'codex' && project.kind !== 'Commons' && project.kind !== 'Hospital')
   const codexProjects = projects.filter((project) => project.source === 'codex' && project.kind !== 'Commons')
-  const districtX = Math.max(26, maxWidth / 2 + 22)
+  const layout = planVillageLayout(projects.map((project) => ({ ...project, ...buildingMetrics(project) })))
+  const { size, districtX, hospitalX, hospitalZ } = layout
   const streetXOffset = 14
   const landingXOffset = 10.2
   const landingZ = -2.1
-  const farmX = districtX + 12
-  // Keep the cafeterias between the river and district streets, in front of the work buildings.
-  const cafeX = 9.5
-  const cafeZ = 9.7
   const boardZ = -5.2
-  const rowZ = [-22, 18, -43, 43]
-  const rowX = { claude: [-5, 6, 16, -5], codex: [6, -5, 16, -5] }
-  const site = (source: 'claude' | 'codex', index: number) => {
-    const column = Math.floor(index / 4)
-    const row = index % 4
-    return { x: (source === 'codex' ? 1 : -1) * (districtX + column * (maxWidth + 9) + rowX[source][row]), z: rowZ[row] }
-  }
-  const sites = [...claudeProjects.map((project, index) => ({ project, ...site('claude', index) })),
-    ...codexProjects.map((project, index) => ({ project, ...site('codex', index) }))]
-  const farthestX = Math.max(farmX + 7, districtX + maxWidth / 2 + 4, ...sites.map(({ project, x }) => Math.abs(x) + buildingMetrics(project).width / 2 + 4))
-  const farthestZ = Math.max(12, ...sites.map(({ project, z }) => Math.abs(z) + buildingMetrics(project).depth / 2 + 7))
-  const size = Math.max(64, Math.ceil(Math.max(farthestX, farthestZ) / 2) * 4)
   box(scene, size + 1.8, 0.27, size + 1.8, materials.plinth, 0, -0.91, 0)
   box(scene, size + 0.92, 0.2, size + 0.92, materials.plinthTrim, 0, -0.68, 0)
   box(scene, size, 0.7, size, materials.ground, 0, -0.42, 0)
@@ -699,7 +685,6 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
       box(scene, 0.56, 0.38, 0.55, materials.outpostAccent, 6.0, 1.5, z)
     }
   }
-  const positions: Array<[number, number, number]> = []
   const paths: Array<[number, number, number, number]> = []
   const pathSegments: Array<{ fromX: number; fromZ: number; toX: number; toZ: number; codex: boolean; street: boolean }> = []
   const path = (fromX: number, fromZ: number, toX: number, toZ: number, codex: boolean, street = false) => {
@@ -711,21 +696,21 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
     const side = codex ? 1 : -1
     const hall = projects.find((project) => project.source === source && project.kind === 'Commons')
     const streetX = side * streetXOffset
-    const entranceZs = [-11, 0, cafeZ]
-    addFarm(scene, side * farmX, -11, codex)
-    addCafeteria(scene, side * cafeX, cafeZ, codex)
-    facilities.set(`${source}-farm`, new THREE.Vector3(side * farmX, 2.7, -11))
-    facilities.set(`${source}-cafe`, new THREE.Vector3(side * cafeX, 4.1, cafeZ))
-    positions.push([side * farmX, -11, 7], [side * cafeX, cafeZ, 5])
-    path(streetX, -11, side * (farmX - 6), -11, codex)
-    path(streetX, cafeZ, side * (cafeX + 3.6), cafeZ, codex)
+    const farm = layout.facilities.get(`${source}-farm`)!
+    const cafe = layout.facilities.get(`${source}-cafe`)!
+    const entranceZs = [farm.z, 0, cafe.z]
+    addFarm(scene, farm.x, farm.z, codex)
+    addCafeteria(scene, cafe.x, cafe.z, codex)
+    facilities.set(`${source}-farm`, new THREE.Vector3(farm.x, 2.7, farm.z))
+    facilities.set(`${source}-cafe`, new THREE.Vector3(cafe.x, 4.1, cafe.z))
+    path(streetX, farm.z, farm.x - side * 6, farm.z, codex)
+    path(streetX, cafe.z, cafe.x + side * 3.6, cafe.z, codex)
     path(side * 5.4, 0, streetX, 0, codex)
     path(side * landingXOffset, 0, side * landingXOffset, boardZ + 1.2, codex)
     if (hall) {
-      const hallX = side * districtX
+      const hallX = layout.sites.get(hall.id)!.x
       const place = addBuilding(scene, hall, -1, hallX, 0, seats, rigs, focusFrames)
       buildings.set(hall.id, place)
-      positions.push([hallX, 0, buildingMetrics(hall).depth / 2 + 2.4])
       const entranceZ = buildingMetrics(hall).depth / 2 + 1.02
       entranceZs.push(entranceZ)
       path(streetX, entranceZ, hallX, entranceZ, codex)
@@ -737,9 +722,31 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
         addTree(scene, hallX - place.width / 2 - 3.3, -3.5, 0.83)
       }
     }
+    const hospital = source === 'claude' ? projects.find((project) => project.kind === 'Hospital' && project.source === 'claude') : null
+    if (hospital) {
+      const place = addBuilding(scene, hospital, 1, hospitalX, hospitalZ, seats, rigs, focusFrames)
+      buildings.set(hospital.id, place)
+      const entranceZ = hospitalZ + buildingMetrics(hospital).depth / 2 + 1.02
+      entranceZs.push(entranceZ)
+      path(streetX, entranceZ, hospitalX, entranceZ, false)
+      const sign = new THREE.Group()
+      sign.position.set(hospitalX, 0, hospitalZ + buildingMetrics(hospital).depth / 2 + 0.18)
+      sign.userData.hospital = true
+      box(sign, 1.8, 1.8, 0.18, materials.parchment, 0, 3.15, 0)
+      box(sign, 0.38, 1.25, 0.22, materials.cloth[1], 0, 3.15, 0.12)
+      box(sign, 1.25, 0.38, 0.22, materials.cloth[1], 0, 3.15, 0.12)
+      scene.add(sign)
+      // Two small nursery cots sit beside the entrance, ready for new chats.
+      for (const side of [-1, 1]) {
+        const cotX = hospitalX + side * (place.width / 2 - 1.4)
+        const cotZ = hospitalZ + buildingMetrics(hospital).depth / 2 + 1.7
+        box(scene, 1.1, 0.2, 1.55, materials.woodLight, cotX, 0.42, cotZ)
+        box(scene, 0.9, 0.08, 1.2, materials.flower[1], cotX, 0.57, cotZ)
+        for (const end of [-1, 1]) box(scene, 1.16, 0.4, 0.12, materials.wood, cotX, 0.7, cotZ + end * 0.75)
+      }
+    }
     districtProjects.forEach((project, index) => {
-      const { x, z } = site(source, index)
-      positions.push([x, z, 6])
+      const { x, z } = layout.sites.get(project.id)!
       const place = addBuilding(scene, project, index, x, z, seats, rigs, focusFrames)
       buildings.set(project.id, place)
       const entranceZ = z + buildingMetrics(project).depth / 2 + 1.02
@@ -772,7 +779,7 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
     const z = between(terrainRandom, -size / 2 + 2, size / 2 - 2)
     if (Math.abs(x) < 5.0 || (Math.abs(Math.abs(x) - landingXOffset) < 5 && Math.abs(z - landingZ) < 5)
       || (Math.abs(x + districtX) < 5 && Math.abs(z) < 5) || (Math.abs(x - districtX) < 5 && Math.abs(z) < 5)) continue
-    if (positions.some(([bx, bz, clearanceZ]) => Math.abs(x - bx) < maxWidth / 2 + 2.4 && Math.abs(z - bz) < clearanceZ)) continue
+    if (layout.footprints.some((item) => Math.abs(x - item.x) < item.width / 2 + 2.4 && Math.abs(z - item.z) < item.depth / 2 + 2.4)) continue
     if (paths.some(([ax, az, bx, bz]) => {
       const dx = bx - ax, dz = bz - az
       const amount = THREE.MathUtils.clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1), 0, 1)
@@ -796,9 +803,12 @@ function addVillage(scene: THREE.Scene, projects: Project[], seats: Map<string, 
   }
   rigs.forEach((rig) => {
     const side = rig.origin.x < 0 ? -1 : 1
+    const source = side < 0 ? 'claude' : 'codex'
+    const farm = layout.facilities.get(`${source}-farm`)!
+    const cafe = layout.facilities.get(`${source}-cafe`)!
     rig.streetX = side * streetXOffset
-    rig.farm.set(side * (farmX - 1.5), 0, -11)
-    rig.cafe.set(side * cafeX, 0, cafeZ + 3.5)
+    rig.farm.set(farm.x - side * 1.5, 0, farm.z)
+    rig.cafe.set(cafe.x, 0, cafe.z + 3.5)
     rig.worldSize = size
     rig.roamPaths = roamPaths[side < 0 ? 'claude' : 'codex'].map((segment) => ({
       fromX: segment.fromX, fromZ: segment.fromZ, toX: segment.toX, toZ: segment.toZ,
@@ -1004,7 +1014,7 @@ function animatePerson(rig: PersonRig, time: number, delta: number, now: number,
   rig.anchor.set(rig.origin.x + rig.person.position.x, 2.75 + rig.body.position.y, rig.origin.z + rig.person.position.z)
 }
 
-const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, exilingId, focusedId, lockSessionFocus, onSelectSession, onFocusProject, onOpenTelemetry }, ref) {
+const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projects, selectedId, exilingId, focusedId, lockSessionFocus, onSelectSession, onFocusProject, onOpenHospital, onOpenTelemetry }, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtimeRef = useRef<Runtime | null>(null)
   const panKeysRef = useRef(new Set<PanKey>())
@@ -1017,8 +1027,8 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
   const focusBeforeRef = useRef<{ target: THREE.Vector3; zoom: number; pitch: number } | null>(null)
   const focusedRef = useRef(focusedId)
   focusedRef.current = focusedId
-  const callbacksRef = useRef({ onSelectSession, onFocusProject, onOpenTelemetry })
-  callbacksRef.current = { onSelectSession, onFocusProject, onOpenTelemetry }
+  const callbacksRef = useRef({ onSelectSession, onFocusProject, onOpenHospital, onOpenTelemetry })
+  callbacksRef.current = { onSelectSession, onFocusProject, onOpenHospital, onOpenTelemetry }
   const [unavailable, setUnavailable] = useState(false)
   const signature = projects.map((project) => `${project.id}:${project.source}:${project.sessions.map((session) => session.id).join(',')}`).join('|')
 
@@ -1062,6 +1072,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     const rigs = new Map<string, PersonRig>()
     const focusFrames = new Map<string, THREE.Group>()
     const sessionProjects = new Map(projects.flatMap((project) => project.sessions.map((session): [string, string] => [session.id, project.id])))
+    const newbornIds = new Set(projects.flatMap((project) => project.sessions.filter((session) => session.newborn).map((session) => session.id)))
     const { size, ripples, boards, facilities } = addVillage(scene, projects, seats, rigs, buildings, focusFrames)
     const shadowExtent = Math.max(48, size * 0.74)
     sun.shadow.camera.left = -shadowExtent; sun.shadow.camera.right = shadowExtent
@@ -1082,12 +1093,13 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       raycaster.setFromCamera(pointer, camera)
     }
     const groundAt = (clientX: number, clientY: number) => { aim(clientX, clientY); return raycaster.ray.intersectPlane(groundPlane, new THREE.Vector3()) }
-    const hitInteractive = (clientX: number, clientY: number): { session?: string; board?: TelemetrySource } | null => {
+    const hitInteractive = (clientX: number, clientY: number): { session?: string; board?: TelemetrySource; hospital?: boolean } | null => {
       aim(clientX, clientY)
       for (const hit of raycaster.intersectObjects(scene.children, true)) {
         let object: THREE.Object3D | null = hit.object
         while (object) {
           if (object.userData.telemetrySource) return { board: object.userData.telemetrySource as TelemetrySource }
+          if (object.userData.hospital) return { hospital: true }
           if (object.userData.sessionId) return { session: String(object.userData.sessionId) }
           object = object.parent
         }
@@ -1125,6 +1137,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       if (!moved && mode === 'pan') {
         const hit = hitInteractive(event.clientX, event.clientY)
         if (hit?.board) callbacksRef.current.onOpenTelemetry(hit.board)
+        else if (hit?.hospital) callbacksRef.current.onOpenHospital()
         else if (hit?.session) callbacksRef.current.onSelectSession(hit.session)
       }
     }
@@ -1163,6 +1176,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
     observer.observe(host)
     resize()
     const labelPoint = new THREE.Vector3()
+    const buildingCorner = new THREE.Vector3()
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     const orbitOffset = new THREE.Vector3()
     let frame = 0
@@ -1215,7 +1229,19 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       camera.zoom += (runtime.desiredZoom - camera.zoom) * (reducedMotion.matches ? 1 : 0.1)
       camera.updateProjectionMatrix()
       for (const ripple of ripples) ripple.position.x = ripple.userData.baseX + (reducedMotion.matches ? 0 : Math.sin(t * 0.7 + ripple.userData.phase) * 0.17)
-      const visibleLabels: { label: HTMLElement; kind: string; x: number; y: number }[] = []
+      const buildingBounds = new Map<string, { left: number; right: number; top: number; bottom: number }>()
+      for (const [id, place] of buildings) {
+        const bounds = { left: Infinity, right: -Infinity, top: Infinity, bottom: -Infinity }
+        for (const sideX of [-1, 1]) for (const sideZ of [-1, 1]) for (const y of [0, place.height]) {
+          buildingCorner.set(place.x + sideX * place.width / 2, y, place.z + sideZ * place.depth / 2).project(camera)
+          const x = (buildingCorner.x + 1) * host.clientWidth / 2
+          const screenY = (1 - buildingCorner.y) * host.clientHeight / 2
+          bounds.left = Math.min(bounds.left, x); bounds.right = Math.max(bounds.right, x)
+          bounds.top = Math.min(bounds.top, screenY); bounds.bottom = Math.max(bounds.bottom, screenY)
+        }
+        buildingBounds.set(id, bounds)
+      }
+      const visibleLabels: { label: HTMLElement; kind: string; id: string; x: number; y: number }[] = []
       for (const label of host.querySelectorAll<HTMLElement>('[data-world-label]')) {
         const kind = label.dataset.worldLabel
         const id = label.dataset.worldId || ''
@@ -1227,10 +1253,10 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
         labelPoint.project(camera)
         const onScreen = labelPoint.z < 1 && labelPoint.x > -1.12 && labelPoint.x < 1.12 && labelPoint.y > -1.12 && labelPoint.y < 1.12
         const show = kind === 'facility' ? camera.zoom > runtime.overviewZoom * 1.18
-          : kind !== 'session' || ((camera.zoom > runtime.overviewZoom * 1.55 || id === selectedRef.current)
+          : kind !== 'session' || ((camera.zoom > runtime.overviewZoom * 1.55 || id === selectedRef.current || newbornIds.has(id))
             && (!focusedRef.current || sessionProjects.get(id) === focusedRef.current || id === selectedRef.current))
         label.style.visibility = onScreen && show ? 'visible' : 'hidden'
-        if (onScreen && show) visibleLabels.push({ label, kind: kind || '', x: (labelPoint.x + 1) * host.clientWidth / 2, y: (1 - labelPoint.y) * host.clientHeight / 2 })
+        if (onScreen && show) visibleLabels.push({ label, kind: kind || '', id, x: (labelPoint.x + 1) * host.clientWidth / 2, y: (1 - labelPoint.y) * host.clientHeight / 2 })
       }
       const occupied: { left: number; right: number; top: number; bottom: number }[] = []
       const priority = (kind: string) => kind === 'board' ? -2 : kind === 'project' ? -1 : kind === 'facility' ? 0 : 1
@@ -1246,6 +1272,8 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
           const bounds = { left: x - width / 2 - 3, right: x + width / 2 + 3, top: y - height - 3, bottom: y + 3 }
           if (bounds.left < 5 || bounds.right > host.clientWidth - 5 || bounds.top < 5 || bounds.bottom > host.clientHeight - 5) continue
           if (occupied.some((other) => bounds.left < other.right && bounds.right > other.left && bounds.top < other.bottom && bounds.bottom > other.top)) continue
+          if (item.kind === 'project' && [...buildingBounds].some(([id, other]) => id !== item.id
+            && bounds.left < other.right + 3 && bounds.right > other.left - 3 && bounds.top < other.bottom + 3 && bounds.bottom > other.top - 3)) continue
           item.label.style.left = `${x}px`
           item.label.style.top = `${y}px`
           occupied.push(bounds)
@@ -1307,7 +1335,7 @@ const WorldScene = forwardRef<WorldControls, Props>(function WorldScene({ projec
       {(['claude', 'codex'] as const).map((source) => <button className={`telemetry-board-label ${source}`} key={source} data-world-label="board" data-world-id={source} type="button" onClick={() => callbacksRef.current.onOpenTelemetry(source)} aria-label={`Open ${source === 'claude' ? 'Claude Code' : 'Codex'} telemetry`}>
         <span>VILLAGE TELEMETRY</span><strong>{source === 'claude' ? 'Claude Code' : 'Codex'}</strong><small>{source === 'claude' ? 'Usage & accounts ↗' : 'Open dashboard ↗'}</small>
       </button>)}
-      {projects.map((project) => <button className={`building-label ${project.source === 'codex' ? 'codex' : ''} ${project.kind === 'Commons' ? 'commons' : ''} ${project.id === activeProjectId ? 'is-focused' : ''}`} key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => callbacksRef.current.onFocusProject(project.id)} type="button">
+      {projects.map((project) => <button className={`building-label ${project.source === 'codex' ? 'codex' : ''} ${project.kind === 'Commons' ? 'commons' : ''} ${project.kind === 'Hospital' ? 'hospital' : ''} ${project.id === activeProjectId ? 'is-focused' : ''}`} key={project.id} data-world-label="project" data-world-id={project.id} onClick={() => project.kind === 'Hospital' ? callbacksRef.current.onOpenHospital() : callbacksRef.current.onFocusProject(project.id)} type="button">
         <span className="building-label-kind">{project.source} · {project.kind}</span><strong>{project.name}</strong><small>{project.sessions.length} {project.sessions.length === 1 ? 'session' : 'sessions'}</small>
       </button>)}
       {(['claude', 'codex'] as const).flatMap((source) => ['farm', 'cafe'].map((place) => <span className="facility-label" key={`${source}-${place}`} data-world-label="facility" data-world-id={`${source}-${place}`}>{place === 'farm' ? 'Farm' : 'Cafeteria'}</span>))}

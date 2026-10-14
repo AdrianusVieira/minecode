@@ -4,6 +4,7 @@ import type { ClaudeSession, CodexSession, SessionActivity, SessionView, Telemet
 import type { Project, Session } from './worldData'
 import type { PanelTheme } from './PanelDisplayControls'
 import TimeRangePicker, { useTimeRange } from './TimeRangePicker'
+import ClaudeChat from './ClaudeChat'
 
 const dateTime = (value: number | null) => value === null ? 'Unavailable' : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 const eventNames: Record<string, string> = {
@@ -135,6 +136,7 @@ export default function SessionTelemetryPanel({ session, project, initialPeriod,
       {resizeHandle}
       <div className="telemetry-panel-head"><div><p className="telemetry-eyebrow">{name.toUpperCase()} / SESSION AT {project.name.toUpperCase()}</p><h2>{session.name}</h2><p>Observed activity and usage for this {source === 'claude' ? 'chat' : 'conversation'}.</p></div><button ref={closeRef} type="button" className="telemetry-close" onClick={onClose} aria-label="Close session details">×</button></div>
       {displayControls}
+      {source === 'claude' && <ClaudeChat sessionId={id} />}
       <div className="telemetry-toolbar"><TimeRangePicker control={period} />{data && <span>Last observed {dateTime(detail?.lastSeen ?? null)}</span>}</div>
       <div className="session-exile"><button type="button" className="exile-open" onClick={() => setConfirmExile(true)} disabled={exiling}>Exile this session <span aria-hidden="true">↗</span></button>
         {confirmExile && <div className="exile-confirm" role="group" aria-label="Confirm exile"><strong>Send this character beyond the village?</strong><p>This permanently deletes its telemetry and saved title from Minecode. New events for this ID will be ignored. The original {name} conversation remains in its own app.</p><div><button type="button" onClick={() => setConfirmExile(false)} disabled={exiling}>Keep here</button><button type="button" className="exile-confirm-button" onClick={() => void exile()} disabled={exiling}>{exiling ? 'Preparing departure…' : 'Exile and delete data'}</button></div></div>}

@@ -6,6 +6,8 @@ export type Session = {
   activity: string
   status: 'recent' | 'quiet' | 'unknown'
   tokens?: number
+  minecodeCreated?: boolean
+  newborn?: boolean
 }
 
 export type Project = {

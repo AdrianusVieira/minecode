@@ -12,12 +12,14 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.299",
+    "better-sqlite3": "11.10.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "three": "0.186.1",
-    "better-sqlite3": "11.10.0"
+    "three": "0.186.1"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
     "@types/node": "26.6.3",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
@@ -26,7 +28,6 @@
     "concurrently": "^9.2.5",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
-    "vite": "8.3.1",
-    "@types/better-sqlite3": "9.6.0"
+    "vite": "8.3.1"
   }
 }

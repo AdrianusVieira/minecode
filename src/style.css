@@ -31,6 +31,17 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .building-label.commons .building-label-kind { color: #9c7136; }
 .building-label.codex.commons { border-color: #b3855f; background: #354449; box-shadow: 0 3px 0 #8e644f, 0 7px 17px #252f304a; }
 .building-label.codex.commons .building-label-kind { color: #e9b894; }
+.building-label.hospital { border-color: #a96361; background: #fff2e9; box-shadow: 0 3px 0 #bb7c74, 0 8px 22px #704f4550; }
+.building-label.hospital::after { border-color: #a96361; background: #fff2e9; }
+.building-label.hospital .building-label-kind { color: #ad615c; }
+.building-label.hospital strong::before { content: '✚'; margin-right: 7px; color: #b86765; font-family: 'DM Sans', sans-serif; }
+.building-label.hospital.is-overview { width: 34px; height: 32px; min-width: 34px; max-width: 34px; padding: 6px 0; border-radius: 50%; }
+.building-label.hospital.is-overview strong { font-size: 0; line-height: 18px; }
+.building-label.hospital.is-overview strong::before { margin: 0; font-size: 17px; }
+.building-label.hospital.is-overview::after { width: 6px; height: 6px; }
+.building-label.hospital.is-overview:hover, .building-label.hospital.is-overview:focus-visible { width: auto; height: auto; min-width: 120px; max-width: 155px; padding: 6px 10px; border-radius: 5px; }
+.building-label.hospital.is-overview:hover strong, .building-label.hospital.is-overview:focus-visible strong { font-size: 12px; }
+.building-label.hospital.is-overview:hover strong::before, .building-label.hospital.is-overview:focus-visible strong::before { margin-right: 6px; font-size: 12px; }
 .telemetry-board-label { z-index: 4; min-width: 125px; padding: 7px 11px 8px; border: 2px solid #65462f; border-radius: 3px; background: #f8edcf; box-shadow: 0 3px 0 #805a37, 0 8px 17px #312a2145; color: #493526; text-align: center; white-space: nowrap; }
 .telemetry-board-label.codex { border-color: #293c40; background: #394e52; box-shadow: 0 3px 0 #26373b, 0 8px 17px #202c3045; color: #f4e9d8; }
 .telemetry-board-label:hover, .telemetry-board-label:focus-visible { transform: translate(-50%, calc(-100% - 3px)); filter: brightness(1.09); }
@@ -53,6 +64,9 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .brand-eyebrow { display: block; margin-bottom: 2px; color: #8e8067; font-size: 9px; font-weight: 700; letter-spacing: .16em; }
 .brand-copy h1 { margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 27px; font-weight: 600; line-height: 1; letter-spacing: -.03em; }
 .top-actions { top: 27px; right: 31px; display: flex; align-items: center; gap: 9px; }
+.hospital-action { min-height: 36px; padding: 0 14px; border: 1px solid #a9655d; border-radius: 22px; background: #fff2e7f2; box-shadow: 0 4px 15px #60443d33; color: #804d47; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.hospital-action:hover { background: #fffaf2; }
+.hospital-action span { margin-right: 5px; font-size: 15px; vertical-align: -1px; }
 .source-badge, .round-action, .period-control { border: 1px solid #cbbf9f; background: #fbf6e8ed; box-shadow: 0 5px 20px #43452f25; backdrop-filter: blur(12px); }
 .source-badge { display: flex; align-items: center; gap: 9px; min-height: 35px; padding: 0 13px; border-radius: 22px; color: #635d4c; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
 .period-control { display: flex; align-items: center; gap: 6px; min-height: 35px; padding: 0 10px; border-radius: 22px; color: #827763; font-size: 10px; font-weight: 700; }
@@ -219,6 +233,41 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 .account-breakdown strong, .session-breakdown strong { display: block; margin-top: 5px; color: var(--panel-text); font-size: 15px; font-weight: 600; }
 .account-projects { margin: 15px 0 0; color: var(--panel-muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .session-telemetry-panel .telemetry-panel-head h2 { overflow-wrap: anywhere; }
+.claude-chat { margin: 20px 0 24px; padding: 20px; border: 1px solid var(--panel-border); border-radius: 5px; background: var(--panel-card); }
+.claude-chat-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.claude-chat-heading span { color: var(--telemetry-accent); font-size: 10px; font-weight: 700; letter-spacing: .15em; }
+.claude-chat-heading h3 { margin: 5px 0 0; font-family: 'Fraunces', Georgia, serif; font-size: 22px; font-weight: 500; }
+.claude-chat-heading small { color: var(--panel-muted); font-size: 11px; white-space: nowrap; }
+.claude-chat-status { display: grid; justify-items: end; gap: 8px; }
+.claude-chat-stop { padding: 7px 10px; border: 1px solid var(--panel-control-border); border-radius: 4px; background: var(--panel-inset); color: var(--panel-text); font-size: 11px; font-weight: 700; cursor: pointer; }
+.claude-chat .session-note { margin: 10px 0 0; }
+.claude-chat-messages { display: flex; flex-direction: column; gap: 10px; max-height: 360px; margin: 18px 0; padding: 0; overflow-y: auto; list-style: none; }
+.claude-chat-messages li { max-width: 90%; padding: 11px 14px; border: 1px solid var(--panel-border); border-radius: 5px; background: var(--panel-inset); }
+.claude-chat-messages li.user { align-self: flex-end; border-color: var(--telemetry-accent); }
+.claude-chat-messages strong { color: var(--telemetry-accent); font-size: 11px; }
+.claude-chat-messages p { margin: 5px 0 0; color: var(--panel-text); font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.claude-chat-error { margin: 12px 0; color: #df918b; font-size: 12px; }
+.claude-chat-form { display: grid; gap: 8px; margin-top: 16px; }
+.claude-chat-form label { color: var(--panel-muted); font-size: 11px; font-weight: 700; }
+.claude-chat-form textarea { width: 100%; min-height: 75px; padding: 11px; resize: vertical; border: 1px solid var(--panel-control-border); border-radius: 4px; background: var(--panel-inset); color: var(--panel-text); font-family: inherit; font-size: 13px; line-height: 1.5; }
+.claude-chat-form textarea:focus-visible { outline: 2px solid var(--telemetry-accent); outline-offset: 1px; }
+.claude-chat-form button { justify-self: end; padding: 9px 15px; border: 0; border-radius: 4px; background: var(--telemetry-accent); color: var(--panel-bg); font-size: 12px; font-weight: 700; }
+.claude-chat-form button:disabled { cursor: not-allowed; opacity: .55; }
+.claude-chat-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.hospital-panel .telemetry-panel-head h2 { color: var(--panel-text); }
+.hospital-story { display: flex; align-items: center; gap: 17px; max-width: 600px; margin: 24px 0; padding: 18px 20px; border: 1px solid var(--panel-border); border-radius: 7px; background: var(--panel-card); }
+.hospital-cross { display: grid; flex: 0 0 55px; width: 55px; height: 55px; place-items: center; border-radius: 50%; background: #f3d6ca; color: #a65e59; font-size: 28px; }
+.hospital-story strong, .hospital-story small { display: block; }
+.hospital-story strong { font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 500; }
+.hospital-story small { margin-top: 5px; color: var(--panel-muted); font-size: 12px; line-height: 1.5; }
+.hospital-form { display: grid; gap: 10px; max-width: 600px; }
+.hospital-form label { margin-top: 8px; color: var(--panel-text); font-size: 12px; font-weight: 700; }
+.hospital-form select, .hospital-form input, .hospital-form textarea { width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--panel-control-border); border-radius: 5px; background: var(--panel-inset); color: var(--panel-text); font: inherit; font-size: 13px; }
+.hospital-form textarea { min-height: 145px; resize: vertical; line-height: 1.5; }
+.hospital-form .session-note { margin: 0 0 5px; }
+.hospital-form button { justify-self: start; margin-top: 12px; padding: 12px 18px; border: 0; border-radius: 5px; background: #bb7b70; color: #fffaf2; font-size: 13px; font-weight: 700; }
+.hospital-form button:disabled { opacity: .5; cursor: not-allowed; }
+.hospital-form button:not(:disabled):hover { background: #cf8b7e; }
 .session-info-row { display: flex; flex-wrap: wrap; gap: 9px; margin: 17px 0; }
 .session-info-row span { flex: 1 1 170px; padding: 13px 15px; border: 1px solid var(--panel-border); border-radius: 4px; color: var(--panel-muted); font-size: 11px; }
 .session-info-row strong { display: block; margin-top: 5px; color: var(--panel-text); font-weight: 600; overflow-wrap: anywhere; }
@@ -257,7 +306,9 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
   .brand-mark { width: 35px; height: 35px; }
   .brand-eyebrow { font-size: 7px; }
   .brand-copy h1 { font-size: 20px; }
-  .top-actions { top: 15px; right: 14px; }
+  .top-actions { top: 70px; left: 14px; right: 14px; justify-content: flex-end; }
+  .top-actions .world-weather { display: none; }
+  .hospital-action { padding: 0 9px; font-size: 10px; }
   .source-badge { padding: 0 8px; font-size: 9px; }
   .period-control { padding: 0 5px; }
   .period-control .time-range-picker > label > span { display: none; }
@@ -269,7 +320,7 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
   .map-caption { display: none; }
   .focus-caption { min-width: 120px; padding: 8px; }
   .focus-caption strong { font-size: 13px; }
-  .world-footer-center { top: 70px; bottom: auto; left: 14px; transform: none; padding: 6px 9px; font-size: 9px; }
+  .world-footer-center { top: 116px; bottom: auto; left: 14px; transform: none; padding: 6px 9px; font-size: 9px; }
   .map-controls { right: 14px; bottom: 15px; }
   .session-panel { top: auto; left: 10px; right: 10px; bottom: 58px; width: auto; max-height: min(55dvh, 520px); padding: 15px 18px; }
   .panel-portrait { display: none; }
@@ -292,7 +343,6 @@ button:focus-visible { outline: 3px solid #9a633f; outline-offset: 3px; }
 @media (max-width: 540px) {
   .top-actions { top: 69px; }
   .top-actions .source-badge { display: none; }
-  .world-weather { padding: 8px 9px; font-size: 10px; }
   .world-footer-center { top: 112px; }
 }
 @media (max-height: 500px) {
